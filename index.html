@@ -2,11 +2,14 @@
 <html lang="en">
 <head>
 <meta property="og:title" content="Dancing Pudding 🍮">
-<meta property="og:description" content="パラメーターで色々ダンス出来ます💃。">
+<meta property="og:description" content="パラメーターで色々ダンスします💃">
 <meta property="og:image" content="https://reko-notes.github.io/Dancing-Pudding/images/ogp.png">
 <meta property="og:url" content="https://reko-notes.github.io/Dancing-Pudding/">
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Dancing Pudding 🍮">
+<meta name="twitter:description" content="パラメーターで色々ダンスします💃">
+<meta name="twitter:image" content="https://reko-notes.github.io/Dancing-Pudding/images/ogp.png">
 <meta charset="UTF-8">
 <title>Dancing Pudding 2D</title>
 <style>
@@ -149,7 +152,7 @@ for (let i = 0; i < 8; i++) {
     blinking: false,
     blinkTimer: 0,
     blinkDuration: 0.1 + Math.random() * 0.08,
-    blinkStyle: 'shut' // shut, squint, happy
+    blinkStyle: 'shut'
   });
 }
 const blinkStyles = ['shut','shut','shut','squint','happy'];
@@ -358,27 +361,22 @@ new p5(sk => {
     sk.noStroke();
 
     if(isBlinking){
-      // Blink styles
       sk.stroke(40,30,20,180);
       sk.strokeWeight(1.8);
       sk.noFill();
       const ew = eyeBase*2.5*es;
       if(bStyle === 'shut'){
-        // Simple horizontal line
         sk.line(-eyeSpacing-ew/2, eyeY, -eyeSpacing+ew/2, eyeY);
         sk.line(eyeSpacing-ew/2, eyeY, eyeSpacing+ew/2, eyeY);
       } else if(bStyle === 'squint'){
-        // Slight downward curve (squinting)
         sk.arc(-eyeSpacing, eyeY-2, ew, eyeBase*1.2, 0.2, Math.PI-0.2);
         sk.arc(eyeSpacing, eyeY-2, ew, eyeBase*1.2, 0.2, Math.PI-0.2);
       } else if(bStyle === 'happy'){
-        // Upside down arcs (happy eyes like ^_^)
         sk.arc(-eyeSpacing, eyeY+2, ew, eyeBase*1.5, Math.PI+0.3, -0.3);
         sk.arc(eyeSpacing, eyeY+2, ew, eyeBase*1.5, Math.PI+0.3, -0.3);
       }
       sk.noStroke();
     } else {
-      // Open eyes
       sk.fill(255);
       sk.push(); sk.translate(-eyeSpacing,eyeY);
       sk.ellipse(0,0,eyeBase*2.5*es,eyeBase*2.8*es); sk.pop();
