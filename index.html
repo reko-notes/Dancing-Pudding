@@ -29,20 +29,21 @@ canvas{display:block}
   max-height:calc(100vh - 70px);overflow-y:auto;transition:opacity 0.3s,transform 0.3s}
 #gui.hidden{opacity:0;pointer-events:none;transform:translateX(20px)}
 #gui h3{text-align:center;margin-bottom:10px;letter-spacing:1px}
-.ctrl{margin-bottom:4px;padding:8px 0;cursor:default}
+.ctrl{margin-bottom:4px;padding:4px 0;cursor:default}
 .ctrl.hidden{display:none}
 .ctrl label{display:block;margin-bottom:2px;font-size:11px;opacity:0.7}
 .ctrl .v{float:right;font-family:monospace;font-size:11px;opacity:0.5}
-input[type=range]{width:100%;height:20px;cursor:pointer}
+.lock{float:right;margin-left:6px;cursor:pointer;font-size:11px;opacity:0.5;transition:opacity 0.2s;user-select:none}
+.lock:hover{opacity:1.0}
+.lock.on{opacity:1.0}
+.ctrl.locked input[type=range]{opacity:0.4;pointer-events:none}
+input[type=range]{width:100%;height:22px;cursor:pointer;padding:0}
 select{width:100%;padding:4px;background:#111;color:#eee;border:1px solid #333;border-radius:5px}
 input[type=color]{width:100%;height:28px;border:1px solid #333;border-radius:5px;background:#111;padding:1px;cursor:pointer}
 button{width:100%;padding:6px;background:#333;color:#eee;border:1px solid #444;border-radius:5px;cursor:pointer;font-size:12px;margin-top:3px}
 button:hover{background:#444}
 button.on{background:#664488;border-color:#886aaa}
 .sep{font-size:9px;opacity:0.35;letter-spacing:2px;margin:12px 0 6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.06)}
-.chk{display:flex;align-items:center;gap:8px;margin-top:8px;cursor:pointer;user-select:none}
-.chk input{width:16px;height:16px;cursor:pointer}
-.chk label{font-size:12px;opacity:0.85;cursor:pointer}
 </style>
 </head>
 <body>
@@ -63,23 +64,23 @@ button.on{background:#664488;border-color:#886aaa}
   </div>
 
   <div class="ctrl">
-    <label>BPM <span class="v" id="bpmVal">120</span></label>
+    <label>BPM <span class="v" id="bpmVal">120</span><span class="lock" data-target="bpm">🔓</span></label>
     <input type="range" id="bpm" min="60" max="150" value="120">
   </div>
 
   <div class="ctrl">
-    <label>Jiggle <span class="v" id="jigVal">0.60</span></label>
+    <label>Jiggle <span class="v" id="jigVal">0.60</span><span class="lock" data-target="jiggle">🔓</span></label>
     <input type="range" id="jig" min="0" max="100" value="60">
   </div>
 
   <div class="ctrl">
-    <label>Sync <span class="v" id="syncVal">1.00</span></label>
+    <label>Sync <span class="v" id="syncVal">1.00</span><span class="lock" data-target="sync">🔓</span></label>
     <input type="range" id="sync" min="0" max="100" value="100">
   </div>
 
   <div class="ctrl">
-    <label>Puddings <span class="v" id="cntVal">1</span></label>
-    <input type="range" id="cnt" min="1" max="7" step="2" value="1">
+    <label>Puddings <span class="v" id="cntVal">1</span><span class="lock" data-target="count">🔓</span></label>
+    <input type="range" id="cnt" min="1" max="9" step="2" value="1">
   </div>
 
   <div class="sep">FORMATION</div>
@@ -89,21 +90,38 @@ button.on{background:#664488;border-color:#886aaa}
     <select id="formation">
       <option value="line">Line</option>
       <option value="circle">Circle</option>
+      <option value="grid">Grid</option>
+      <option value="vshape">V-Shape</option>
+      <option value="zigzag">Zigzag</option>
+      <option value="spiral">Spiral</option>
     </select>
   </div>
 
   <div class="ctrl">
-    <label>Motion <span class="v" id="formationMotionVal">None</span></label>
-    <select id="formationMotion"></select>
+    <label>Motion <span class="v" id="motionVal">None</span></label>
+    <select id="motion">
+      <option value="none">None</option>
+      <option value="wave">Wave</option>
+      <option value="accordion">Accordion</option>
+      <option value="seesaw">Seesaw</option>
+      <option value="breathe">Breathe</option>
+      <option value="petal">Petal</option>
+      <option value="star">Star</option>
+      <option value="jitter">Jitter</option>
+      <option value="orbit">Orbit</option>
+      <option value="drift">Drift</option>
+      <option value="pulse">Pulse</option>
+      <option value="depthwave">Depth Wave</option>
+    </select>
   </div>
 
   <div class="ctrl" id="spacingCtrl">
-    <label>Spacing <span class="v" id="spcVal">1.6</span></label>
+    <label>Spacing <span class="v" id="spcVal">1.6</span><span class="lock" data-target="spacing">🔓</span></label>
     <input type="range" id="spc" min="10" max="30" value="16">
   </div>
 
   <div class="ctrl" id="radiusCtrl">
-    <label>Circle Radius <span class="v" id="radVal">200</span></label>
+    <label>Circle Radius <span class="v" id="radVal">200</span><span class="lock" data-target="radius">🔓</span></label>
     <input type="range" id="radius" min="80" max="500" step="10" value="200">
   </div>
 
@@ -128,7 +146,7 @@ button.on{background:#664488;border-color:#886aaa}
     <input type="color" id="colCheek" value="#ff6464">
   </div>
   <div class="ctrl">
-    <label>Cheek Alpha <span class="v" id="chkAVal">0.31</span></label>
+    <label>Cheek Alpha <span class="v" id="chkAVal">0.31</span><span class="lock" data-target="cheekAlpha">🔓</span></label>
     <input type="range" id="chkA" min="0" max="100" value="31">
   </div>
 
@@ -137,13 +155,8 @@ button.on{background:#664488;border-color:#886aaa}
   <button id="btnManual" class="on">Manual</button>
   <button id="btnAuto">Auto</button>
 
-  <div class="chk">
-    <input type="checkbox" id="lockBpm">
-    <label for="lockBpm">Lock BPM</label>
-  </div>
-
   <div class="ctrl" style="margin-top:8px">
-    <label>Auto Interval <span class="v" id="intVal">6</span>s</label>
+    <label>Auto Interval <span class="v" id="intVal">6</span>s<span class="lock" data-target="autoInterval">🔓</span></label>
     <input type="range" id="autoInt" min="3" max="20" value="6">
   </div>
 </div>
@@ -159,35 +172,13 @@ toggleEl.onclick = () => {
   guiEl.classList.toggle('hidden', !guiVisible);
 };
 
-document.querySelectorAll('#gui .ctrl').forEach(ctrl => {
-  const slider = ctrl.querySelector('input[type=range]');
-  if (!slider) return;
-  ctrl.addEventListener('wheel', e => {
-    e.preventDefault();
-    e.stopPropagation();
-    const step = parseFloat(slider.step) || 1;
-    const delta = e.deltaY < 0 ? step : -step;
-    slider.value = Math.min(+slider.max, Math.max(+slider.min, +slider.value + delta));
-    slider.dispatchEvent(new Event('input'));
-  }, {passive: false});
-});
-
-// ── Formation Motion definitions ──
-const FORMATION_MOTIONS = {
-  line: [
-    { value:'none', label:'None' },
-    { value:'wave', label:'Wave' },
-    { value:'accordion', label:'Accordion' },
-    { value:'seesaw', label:'Seesaw' }
-  ],
-  circle: [
-    { value:'none', label:'None' },
-    { value:'breathe', label:'Breathe' },
-    { value:'petal', label:'Petal' },
-    { value:'wave', label:'Wave' },
-    { value:'star', label:'Star' },
-    { value:'jitter', label:'Jitter' }
-  ]
+// ── Formation & Motion lists ──
+const FORMATIONS = ['line','circle','grid','vshape','zigzag','spiral'];
+const MOTIONS = ['none','wave','accordion','seesaw','breathe','petal','star','jitter','orbit','drift','pulse','depthwave'];
+const MOTION_LABELS = {
+  none:'None', wave:'Wave', accordion:'Accordion', seesaw:'Seesaw',
+  breathe:'Breathe', petal:'Petal', star:'Star', jitter:'Jitter',
+  orbit:'Orbit', drift:'Drift', pulse:'Pulse', depthwave:'Depth Wave'
 };
 
 // ── State ──
@@ -199,11 +190,14 @@ const S = {
   count:1,
   spacing:1.6,
   formation:'line',
-  formationMotion:'none',
+  motion:'none',
   circleRadius:200,
   auto:false, autoTimer:0, autoInterval:6,
-  lockBpm:false,
-  zoom:1.0
+  zoom:1.0,
+  locks: {
+    bpm:false, jiggle:false, sync:false, count:false,
+    spacing:false, radius:false, cheekAlpha:false, autoInterval:false
+  }
 };
 const danceList = ['bounce','twist','sway','hop'];
 
@@ -226,6 +220,13 @@ const EXPR_INTERVAL = 4;
 
 let smoothBPM = 120;
 
+// ── Click reaction constants ──
+const CR_TAME = 0.10;
+const CR_FLY = 0.45;
+const CR_LAND = 0.15;
+const CR_TOTAL = CR_TAME + CR_FLY + CR_LAND;
+const CR_RECOVERY = 0.30;
+
 // ── Per-pudding state ──
 let puddingStates = [];
 
@@ -233,13 +234,22 @@ function ensurePuddingStates(n) {
   while (puddingStates.length < n) {
     puddingStates.push({
       posReady: false,
-      fx: 0,
-      fy: 0,
+      fx: 0, fy: 0,
+      prevY: 0,
       detached: false,
+      detachX: 0, detachY: 0, // ドラッグ後の定位置（Motion offsetの基準点）
       beatOffset: Math.random(),
       jitterPhase: Math.random() * Math.PI * 2,
       jitterAmp: 0.5 + Math.random() * 0.5,
-      jitterSpeed: 0.8 + Math.random() * 0.4
+      jitterSpeed: 0.8 + Math.random() * 0.4,
+      jitterDirX: Math.random() - 0.5,
+      jitterDirY: Math.random() - 0.5,
+      // Click reaction
+      clickReaction: null,
+      recoveryTimer: 0,
+      cheekBoost: 0,
+      jiggleBoost: 0,
+      caramelDelayY: 0
     });
   }
   if (puddingStates.length > n) puddingStates.length = n;
@@ -247,7 +257,7 @@ function ensurePuddingStates(n) {
 
 // ── Blink ──
 const blinkStates = [];
-for (let i = 0; i < 8; i++) {
+for (let i = 0; i < 10; i++) {
   blinkStates.push({
     nextBlink: 1.5 + Math.random() * 4,
     blinking: false,
@@ -258,68 +268,205 @@ for (let i = 0; i < 8; i++) {
 }
 const blinkStyles = ['shut','shut','shut','squint','happy'];
 
-// ── DRAG ──
+// ── DRAG / CLICK ──
 let selectedIndex = -1;
-let dragOffsetX = 0;
-let dragOffsetY = 0;
+let dragOffsetX = 0, dragOffsetY = 0;
+let dragStartX = 0, dragStartY = 0;
+let hasDragged = false;
 
 // ── GAZE ──
 let gazeTarget = -1;
 let gazeHoldTimer = 0;
 const GAZE_HOLD_SEC = 1.5;
 const gazeSmooth = [];
-for (let i = 0; i < 8; i++) gazeSmooth.push({ x: 0, y: 0 });
+for (let i = 0; i < 10; i++) gazeSmooth.push({ x: 0, y: 0 });
 
-// ── Formation target position ──
-function getFormationTarget(i, count, cx, cy, baseSize, beat) {
+// ── Formation base position ──
+function getFormationBase(i, count, cx, cy, baseSize) {
   if (count <= 1) return { x: cx, y: cy };
+  const spacing = S.spacing * baseSize;
 
-  const fTime = beat * 0.5;
+  if (S.formation === 'line') {
+    return { x: cx + (i - (count - 1) / 2) * spacing, y: cy };
+  }
 
   if (S.formation === 'circle') {
     const angle = (i / count) * Math.PI * 2 - Math.PI / 2;
-    let r = S.circleRadius;
-
-    if (S.formationMotion === 'breathe') {
-      r += Math.sin(fTime * Math.PI * 2) * 20;
-    } else if (S.formationMotion === 'petal') {
-      const dir = i % 2 === 0 ? 1 : -1;
-      r += dir * Math.sin(fTime * Math.PI * 2) * 25;
-    } else if (S.formationMotion === 'wave') {
-      r += Math.sin(fTime * Math.PI * 2 + i * (Math.PI * 2 / count)) * 25;
-    } else if (S.formationMotion === 'star') {
-      const spike = Math.sin(fTime * Math.PI * 2 + i * (Math.PI * 2 / count));
-      r += Math.pow(Math.abs(spike), 0.5) * Math.sign(spike) * 35;
-    } else if (S.formationMotion === 'jitter') {
-      const ps = puddingStates[i % puddingStates.length];
-      if (ps) {
-        r += Math.sin(fTime * Math.PI * 2 * ps.jitterSpeed + ps.jitterPhase) * 20 * ps.jitterAmp;
-      }
-    }
-
     return {
-      x: cx + Math.cos(angle) * r,
-      y: cy + Math.sin(angle) * r
+      x: cx + Math.cos(angle) * S.circleRadius,
+      y: cy + Math.sin(angle) * S.circleRadius
     };
   }
 
-  const spacing = S.spacing * baseSize;
-  const baseX = cx + (i - (count - 1) / 2) * spacing;
-  let x = baseX;
-  let y = cy;
-
-  if (S.formationMotion === 'wave') {
-    y += Math.sin(fTime * Math.PI * 2 + i * 0.8) * baseSize * 0.22;
-  } else if (S.formationMotion === 'accordion') {
-    const stretch = Math.sin(fTime * Math.PI * 2) * 0.4;
-    x = cx + (i - (count - 1) / 2) * spacing * (1 + stretch);
-  } else if (S.formationMotion === 'seesaw') {
-    const denom = ((count - 1) / 2) || 1;
-    const tilt = (i - (count - 1) / 2) / denom;
-    y += Math.sin(fTime * Math.PI * 2) * tilt * baseSize * 0.30;
+  if (S.formation === 'grid') {
+    const cols = Math.ceil(Math.sqrt(count));
+    const rows = Math.ceil(count / cols);
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const rowCount = (row === rows - 1) ? (count - row * cols) : cols;
+    const gridSpacing = spacing * 0.7;
+    return {
+      x: cx + (col - (rowCount - 1) / 2) * gridSpacing,
+      y: cy + (row - (rows - 1) / 2) * gridSpacing
+    };
   }
 
-  return { x, y };
+  if (S.formation === 'vshape') {
+    // 谷型（∨）：中央が下、両端が上
+    const half = (count - 1) / 2;
+    const rel = i - half;
+    return {
+      x: cx + rel * spacing * 0.7,
+      y: cy - Math.abs(rel) * spacing * 0.5 + spacing * 0.3
+    };
+  }
+
+  if (S.formation === 'zigzag') {
+    // 上下交互
+    const rel = i - (count - 1) / 2;
+    const zigY = (i % 2 === 0) ? -spacing * 0.35 : spacing * 0.35;
+    return {
+      x: cx + rel * spacing * 0.65,
+      y: cy + zigY
+    };
+  }
+
+  if (S.formation === 'spiral') {
+    // 中央から外に螺旋
+    const armAngle = i * (Math.PI * 2 / 3.5); // 螺旋の巻き速度
+    const radius = spacing * 0.35 * i;
+    return {
+      x: cx + Math.cos(armAngle) * radius,
+      y: cy + Math.sin(armAngle) * radius
+    };
+  }
+
+  return { x: cx, y: cy };
+}
+
+// ── Motion offset ──
+function getMotionOffset(i, count, baseSize, beat, basePos, cx, cy) {
+  if (S.motion === 'none' || count <= 1) {
+    return { dx: 0, dy: 0, sizeScale: 1, colorFactor: 1 };
+  }
+
+  const fTime = beat * 0.5;
+  const t2pi = fTime * Math.PI * 2;
+
+  let dx = 0, dy = 0, sizeScale = 1, colorFactor = 1;
+
+  switch (S.motion) {
+    case 'wave': {
+      dy = Math.sin(t2pi + i * 0.8) * baseSize * 0.5;
+      break;
+    }
+    case 'accordion': {
+      const relX = basePos.x - cx;
+      const relY = basePos.y - cy;
+      const stretch = Math.sin(t2pi) * 0.5;
+      dx = relX * stretch;
+      dy = relY * stretch;
+      break;
+    }
+    case 'seesaw': {
+      const relX = basePos.x - cx;
+      const denom = baseSize * 3 || 1;
+      const tilt = relX / denom;
+      dy = Math.sin(t2pi) * tilt * baseSize * 0.8;
+      break;
+    }
+    case 'breathe': {
+      const relX = basePos.x - cx;
+      const relY = basePos.y - cy;
+      const pulseAmt = Math.sin(t2pi) * 0.2;
+      dx = relX * pulseAmt;
+      dy = relY * pulseAmt;
+      break;
+    }
+    case 'petal': {
+      const relX = basePos.x - cx;
+      const relY = basePos.y - cy;
+      const len = Math.sqrt(relX*relX + relY*relY) || 1;
+      const dir = i % 2 === 0 ? 1 : -1;
+      const amt = Math.sin(t2pi) * baseSize * 0.6 * dir;
+      dx = (relX / len) * amt;
+      dy = (relY / len) * amt;
+      break;
+    }
+    case 'star': {
+      const relX = basePos.x - cx;
+      const relY = basePos.y - cy;
+      const len = Math.sqrt(relX*relX + relY*relY) || 1;
+      const spike = Math.sin(t2pi + i * (Math.PI * 2 / count));
+      const amt = Math.pow(Math.abs(spike), 0.5) * Math.sign(spike) * baseSize * 0.7;
+      dx = (relX / len) * amt;
+      dy = (relY / len) * amt;
+      break;
+    }
+    case 'jitter': {
+      // 極振り：完全にランダム方向にビクビク動く
+      const ps = puddingStates[i];
+      if (ps) {
+        const speed = ps.jitterSpeed * 3.5; // 速い
+        const amp = baseSize * 0.7 * ps.jitterAmp; // 大きい
+        dx = Math.sin(t2pi * speed + ps.jitterPhase) * amp * ps.jitterDirX * 2;
+        dy = Math.cos(t2pi * speed * 1.3 + ps.jitterPhase * 1.7) * amp * ps.jitterDirY * 2;
+      }
+      break;
+    }
+    case 'orbit': {
+      const relX = basePos.x - cx;
+      const relY = basePos.y - cy;
+      const orbAngle = fTime * Math.PI * 0.5;
+      const cosA = Math.cos(orbAngle);
+      const sinA = Math.sin(orbAngle);
+      dx = relX * cosA - relY * sinA - relX;
+      dy = relX * sinA + relY * cosA - relY;
+      break;
+    }
+    case 'drift': {
+      dx = Math.sin(t2pi * 0.7) * baseSize * 1.2;
+      dy = Math.sin(t2pi * 1.4) * baseSize * 0.6;
+      break;
+    }
+    case 'pulse': {
+      sizeScale = 1 + Math.sin(t2pi) * 0.3;
+      break;
+    }
+    case 'depthwave': {
+      const z = Math.sin(t2pi + i * (Math.PI * 2 / count));
+      sizeScale = 1 + z * 0.35;
+      dy = z * baseSize * 0.4;
+      colorFactor = 1 + z * 0.25;
+      break;
+    }
+  }
+
+  return { dx, dy, sizeScale, colorFactor };
+}
+
+// ── Target合成 ──
+function getFormationTarget(i, count, cx, cy, baseSize, beat) {
+  const base = getFormationBase(i, count, cx, cy, baseSize);
+  const m = getMotionOffset(i, count, baseSize, beat, base, cx, cy);
+  return {
+    x: base.x + m.dx,
+    y: base.y + m.dy,
+    sizeScale: m.sizeScale,
+    colorFactor: m.colorFactor
+  };
+}
+
+// detached プリン用：detach位置を基準にMotion offsetだけ適用
+function getDetachedTarget(ps, i, count, cx, cy, baseSize, beat) {
+  const virtualBase = { x: ps.detachX, y: ps.detachY };
+  const m = getMotionOffset(i, count, baseSize, beat, virtualBase, cx, cy);
+  return {
+    x: ps.detachX + m.dx,
+    y: ps.detachY + m.dy,
+    sizeScale: m.sizeScale,
+    colorFactor: m.colorFactor
+  };
 }
 
 // ── Smooth follow ──
@@ -340,32 +487,43 @@ function updateSmoothPosition(ps, target, dt) {
 const $=id=>document.getElementById(id);
 
 function updateVisibleControls() {
-  $('spacingCtrl').classList.toggle('hidden', S.formation !== 'line');
+  $('spacingCtrl').classList.toggle('hidden', S.formation === 'circle');
   $('radiusCtrl').classList.toggle('hidden', S.formation !== 'circle');
 }
 
-function updateFormationMotionOptions() {
-  const sel = $('formationMotion');
-  const options = FORMATION_MOTIONS[S.formation] || FORMATION_MOTIONS.line;
-  sel.innerHTML = '';
-  for (const opt of options) {
-    const el = document.createElement('option');
-    el.value = opt.value;
-    el.textContent = opt.label;
-    sel.appendChild(el);
-  }
-  if (!options.some(o => o.value === S.formationMotion)) {
-    S.formationMotion = 'none';
-  }
-  sel.value = S.formationMotion;
-  const current = options.find(o => o.value === S.formationMotion);
-  $('formationMotionVal').textContent = current ? current.label : S.formationMotion;
-  updateVisibleControls();
-}
-updateFormationMotionOptions();
+document.querySelectorAll('#gui input[type=range]').forEach(slider => {
+  slider.addEventListener('wheel', e => {
+    const ctrl = slider.closest('.ctrl');
+    const lockEl = ctrl ? ctrl.querySelector('.lock') : null;
+    if (lockEl) {
+      const target = lockEl.dataset.target;
+      if (S.locks[target]) return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    const step = parseFloat(slider.step) || 1;
+    const delta = e.deltaY < 0 ? step : -step;
+    slider.value = Math.min(+slider.max, Math.max(+slider.min, +slider.value + delta));
+    slider.dispatchEvent(new Event('input'));
+  }, {passive: false});
+});
 
-// Reset：detachedフラグだけ解除。posReadyは維持することで、
-// 現在位置から目標位置へupdateSmoothPositionが滑らかに補間する。
+document.querySelectorAll('.lock').forEach(lockEl => {
+  lockEl.onclick = (e) => {
+    e.stopPropagation();
+    const target = lockEl.dataset.target;
+    S.locks[target] = !S.locks[target];
+    lockEl.textContent = S.locks[target] ? '🔒' : '🔓';
+    lockEl.classList.toggle('on', S.locks[target]);
+    const ctrl = lockEl.closest('.ctrl');
+    if (ctrl) {
+      ctrl.classList.toggle('locked', S.locks[target]);
+      const slider = ctrl.querySelector('input[type=range]');
+      if (slider) slider.disabled = S.locks[target];
+    }
+  };
+});
+
 function resetAllPositions() {
   for (const ps of puddingStates) {
     ps.detached = false;
@@ -389,21 +547,19 @@ $('spc').oninput=e=>{S.spacing=e.target.value/10;$('spcVal').textContent=S.spaci
 $('radius').oninput=e=>{S.circleRadius=+e.target.value;$('radVal').textContent=e.target.value};
 $('formation').onchange=e=>{
   S.formation=e.target.value;
-  S.formationMotion='none';
   $('formationVal').textContent=e.target.selectedOptions[0].text;
-  updateFormationMotionOptions();
+  updateVisibleControls();
 };
-$('formationMotion').onchange=e=>{
-  S.formationMotion=e.target.value;
-  const options = FORMATION_MOTIONS[S.formation] || [];
-  const current = options.find(o => o.value === S.formationMotion);
-  $('formationMotionVal').textContent = current ? current.label : S.formationMotion;
+$('motion').onchange=e=>{
+  S.motion=e.target.value;
+  $('motionVal').textContent = MOTION_LABELS[S.motion] || S.motion;
 };
 $('autoInt').oninput=e=>{S.autoInterval=+e.target.value;$('intVal').textContent=e.target.value};
 $('btnManual').onclick=()=>{S.auto=false;$('btnManual').classList.add('on');$('btnAuto').classList.remove('on')};
 $('btnAuto').onclick=()=>{S.auto=true;$('btnAuto').classList.add('on');$('btnManual').classList.remove('on')};
 $('btnReset').onclick=()=>{ resetAllPositions(); };
-$('lockBpm').onchange=e=>{S.lockBpm=e.target.checked};
+
+updateVisibleControls();
 
 window.addEventListener('wheel', e => {
   if (e.target.closest('#gui')) return;
@@ -453,6 +609,45 @@ function makePuddingOutline(w, h, bodyTop, bodyBot, jig) {
   return {pts:catmullRomPoints(cp,4), bodyTop};
 }
 
+// ── Click reaction transform ──
+function getClickReactionTransform(cr, t, size) {
+  const elapsed = t - cr.startTime;
+  let dy = 0, scX = 1, scY = 1;
+  let phase = 'end';
+
+  if (elapsed < CR_TAME) {
+    const p = elapsed / CR_TAME;
+    scX = 1 - p * 0.12;
+    scY = 1 - p * 0.15;
+    phase = 'tame';
+  } else if (elapsed < CR_TAME + CR_FLY) {
+    const local = (elapsed - CR_TAME) / CR_FLY;
+    dy = -Math.sin(local * Math.PI) * size * 1.6;
+    scX = Math.cos(local * Math.PI * 2);
+    scY = 1 + Math.sin(local * Math.PI) * 0.10;
+    phase = 'fly';
+  } else if (elapsed < CR_TOTAL) {
+    const local = (elapsed - CR_TAME - CR_FLY) / CR_LAND;
+    scY = 1 - Math.sin(local * Math.PI) * 0.15;
+    scX = 1 + Math.sin(local * Math.PI) * 0.10;
+    phase = 'land';
+  }
+
+  return { dy, scX, scY, phase, elapsed };
+}
+
+function adjustColor(sk, colorStr, factor) {
+  const c = sk.color(colorStr);
+  const r = sk.red(c) * factor;
+  const g = sk.green(c) * factor;
+  const b = sk.blue(c) * factor;
+  return sk.color(
+    Math.max(0, Math.min(255, r)),
+    Math.max(0, Math.min(255, g)),
+    Math.max(0, Math.min(255, b))
+  );
+}
+
 // ── p5 sketch ──
 new p5(sk => {
   let t = 0;
@@ -492,26 +687,46 @@ new p5(sk => {
       const ps = puddingStates[closestIdx];
       dragOffsetX = ps.fx - sk.mouseX;
       dragOffsetY = ps.fy - sk.mouseY;
+      dragStartX = sk.mouseX;
+      dragStartY = sk.mouseY;
+      hasDragged = false;
       gazeTarget = closestIdx;
       gazeHoldTimer = 0;
-      ps.detached = true;
     }
   };
 
   sk.mouseDragged = () => {
-    if (selectedIndex >= 0 && selectedIndex < puddingStates.length) {
+    if (selectedIndex < 0 || selectedIndex >= puddingStates.length) return;
+    const baseSize = Math.min(sk.width, sk.height) * 0.16 * S.zoom;
+    const dragThreshold = baseSize * 0.05;
+    const totalMove = Math.sqrt(
+      (sk.mouseX - dragStartX) ** 2 + (sk.mouseY - dragStartY) ** 2
+    );
+    if (totalMove > dragThreshold) {
+      hasDragged = true;
       const ps = puddingStates[selectedIndex];
-      ps.fx = sk.mouseX + dragOffsetX;
-      ps.fy = sk.mouseY + dragOffsetY;
+      ps.detached = true;
+      // ドラッグ中はマウス位置をそのまま定位置に設定（Motion offsetは描画時に加算される）
+      ps.detachX = sk.mouseX + dragOffsetX;
+      ps.detachY = sk.mouseY + dragOffsetY;
+      // 表示位置もドラッグ中は瞬時に追従（Motionの補間は次フレームから）
+      ps.fx = ps.detachX;
+      ps.fy = ps.detachY;
       ps.posReady = true;
     }
   };
 
   sk.mouseReleased = () => {
-    if (selectedIndex >= 0) {
+    if (selectedIndex >= 0 && selectedIndex < puddingStates.length) {
+      const ps = puddingStates[selectedIndex];
+      if (!hasDragged) {
+        ps.clickReaction = { startTime: t };
+        ps.recoveryTimer = 0;
+      }
       gazeHoldTimer = GAZE_HOLD_SEC;
     }
     selectedIndex = -1;
+    hasDragged = false;
   };
 
   sk.draw = () => {
@@ -538,20 +753,16 @@ new p5(sk => {
         $('dance').value=S.dance;
         $('danceVal').textContent=$('dance').selectedOptions[0].text;
 
-        const formations = ['line','circle'];
-        S.formation = formations[Math.floor(Math.random()*formations.length)];
+        S.formation = FORMATIONS[Math.floor(Math.random()*FORMATIONS.length)];
         $('formation').value=S.formation;
         $('formationVal').textContent=$('formation').selectedOptions[0].text;
-        updateFormationMotionOptions();
+        updateVisibleControls();
 
-        const motions = FORMATION_MOTIONS[S.formation];
-        S.formationMotion = motions[Math.floor(Math.random()*motions.length)].value;
-        $('formationMotion').value = S.formationMotion;
-        const currentMotion = motions.find(o => o.value === S.formationMotion);
-        $('formationMotionVal').textContent = currentMotion ? currentMotion.label : S.formationMotion;
+        S.motion = MOTIONS[Math.floor(Math.random()*MOTIONS.length)];
+        $('motion').value = S.motion;
+        $('motionVal').textContent = MOTION_LABELS[S.motion] || S.motion;
 
-        // Lock BPMがOFFのときだけBPMをランダム変更
-        if (!S.lockBpm) {
+        if (!S.locks.bpm) {
           S.bpm = 80+Math.floor(Math.random()*70);
           $('bpm').value=S.bpm; $('bpmVal').textContent=S.bpm;
         }
@@ -592,79 +803,147 @@ new p5(sk => {
     const drawItems = [];
     for (let i = 0; i < S.count; i++) {
       const ps = puddingStates[i];
-      let pos;
-      if (ps.detached) {
+      let pos, sizeScale = 1, colorFactor = 1;
+
+      if (i === selectedIndex && hasDragged) {
+        // ドラッグ中：マウス位置に瞬時追従、Motion効かせない
         pos = { x: ps.fx, y: ps.fy };
-      } else if (i === selectedIndex) {
-        pos = { x: ps.fx, y: ps.fy };
+      } else if (ps.detached) {
+        // ドラッグ後：detach位置を中心にMotion offsetを乗せる
+        const target = getDetachedTarget(ps, i, S.count, cx, cy, baseSize, beat);
+        pos = updateSmoothPosition(ps, target, dt);
+        sizeScale = target.sizeScale;
+        colorFactor = target.colorFactor;
       } else {
+        // 通常：Formation + Motion
         const target = getFormationTarget(i, S.count, cx, cy, baseSize, beat);
         pos = updateSmoothPosition(ps, target, dt);
+        sizeScale = target.sizeScale;
+        colorFactor = target.colorFactor;
       }
-      // Sync極大テスト：×4 で最大4ビート分ズレる
+
+      if (ps.cheekBoost > 0) ps.cheekBoost = Math.max(0, ps.cheekBoost - dt / 0.5);
+      if (ps.jiggleBoost > 0) ps.jiggleBoost = Math.max(0, ps.jiggleBoost - dt / 1.0);
+      if (ps.recoveryTimer > 0) ps.recoveryTimer = Math.max(0, ps.recoveryTimer - dt);
+
+      if (ps.clickReaction) {
+        const elapsed = t - ps.clickReaction.startTime;
+        if (elapsed >= CR_TOTAL) {
+          ps.cheekBoost = 1.0;
+          ps.jiggleBoost = 1.0;
+          ps.recoveryTimer = CR_RECOVERY;
+          ps.clickReaction = null;
+        }
+      }
+
       const personalBeat = beat + ps.beatOffset * S.sync * 4;
-      drawItems.push({ idx: i, x: pos.x, y: pos.y, personalBeat });
+      drawItems.push({ idx: i, x: pos.x, y: pos.y, personalBeat, sizeScale, colorFactor });
     }
 
-    if (S.formation === 'circle') {
+    if (S.motion === 'depthwave') {
+      drawItems.sort((a, b) => a.sizeScale - b.sizeScale);
+    } else if (S.formation === 'circle' || S.formation === 'spiral') {
       drawItems.sort((a, b) => a.y - b.y);
     } else {
       drawItems.sort((a, b) => a.idx - b.idx);
     }
 
     for (const item of drawItems) {
-      drawPudding(sk, item.x, item.y, baseSize, t, item.personalBeat + item.idx*0.35, item.idx, dt);
+      drawPudding(sk, item.x, item.y, baseSize * item.sizeScale, t, item.personalBeat + item.idx*0.35, item.idx, dt, item.colorFactor);
     }
   };
 
-  function drawPudding(sk, px, py, size, time, beat, idx, dt) {
+  function drawPudding(sk, px, py, size, time, beat, idx, dt, colorFactor) {
     sk.push();
     sk.translate(px, py);
 
-    const expr = facePool[currentExprIdx];
+    const ps = puddingStates[idx];
     const bs = blinkStates[idx % blinkStates.length];
+
+    const cr = ps ? ps.clickReaction : null;
+    const crTf = cr ? getClickReactionTransform(cr, time, size) : null;
+    const inReaction = !!crTf;
+
+    const recoveryRatio = ps && ps.recoveryTimer > 0 ? ps.recoveryTimer / CR_RECOVERY : 0;
+    const danceInfluence = 1 - recoveryRatio;
+
+    const expr = facePool[currentExprIdx];
+
     let dy=0, rot=0, scX=1, scY=1;
     const phase = beat*Math.PI*2;
 
-    switch(S.dance){
-      case 'bounce':
-        dy=-Math.abs(Math.sin(phase))*size*0.35;
-        scY=1+Math.abs(Math.sin(phase))*0.1;
-        scX=1-Math.abs(Math.sin(phase))*0.06;
-        rot=Math.sin(phase*0.5)*0.12; break;
-      case 'twist':
-        dy=-Math.abs(Math.sin(phase))*size*0.15;
-        scX=1+Math.sin(phase)*0.15;
-        scY=1-Math.sin(phase)*0.08;
-        rot=Math.sin(phase*0.5)*0.08; break;
-      case 'sway':
-        sk.translate(Math.sin(phase*0.5)*size*0.3,0);
-        dy=-Math.abs(Math.sin(phase))*size*0.1;
-        rot=Math.sin(phase*0.5)*0.22; break;
-      case 'hop':
-        dy=-Math.max(0,Math.sin(phase))*size*0.55;
-        rot=Math.sin(phase*0.5)*0.15;
-        scY=dy<-size*0.05?1.08:0.9;
-        scX=dy<-size*0.05?0.93:1.08; break;
+    if (inReaction) {
+      dy = crTf.dy;
+      scX = crTf.scX;
+      scY = crTf.scY;
+    } else {
+      let danceDy=0, danceScX=1, danceScY=1, danceRot=0;
+      switch(S.dance){
+        case 'bounce':
+          danceDy=-Math.abs(Math.sin(phase))*size*0.35;
+          danceScY=1+Math.abs(Math.sin(phase))*0.1;
+          danceScX=1-Math.abs(Math.sin(phase))*0.06;
+          danceRot=Math.sin(phase*0.5)*0.12; break;
+        case 'twist':
+          danceDy=-Math.abs(Math.sin(phase))*size*0.15;
+          danceScX=1+Math.sin(phase)*0.15;
+          danceScY=1-Math.sin(phase)*0.08;
+          danceRot=Math.sin(phase*0.5)*0.08; break;
+        case 'sway':
+          sk.translate(Math.sin(phase*0.5)*size*0.3*danceInfluence,0);
+          danceDy=-Math.abs(Math.sin(phase))*size*0.1;
+          danceRot=Math.sin(phase*0.5)*0.22; break;
+        case 'hop':
+          danceDy=-Math.max(0,Math.sin(phase))*size*0.55;
+          danceRot=Math.sin(phase*0.5)*0.15;
+          danceScY=danceDy<-size*0.05?1.08:0.9;
+          danceScX=danceDy<-size*0.05?0.93:1.08; break;
+      }
+      dy = danceDy * danceInfluence;
+      rot = danceRot * danceInfluence;
+      scX = 1 + (danceScX - 1) * danceInfluence;
+      scY = 1 + (danceScY - 1) * danceInfluence;
+    }
+
+    if (ps) {
+      const currentY = py + dy;
+      const velocityY = currentY - ps.prevY;
+      ps.prevY = currentY;
+      const caramelTargetY = -velocityY * 0.6;
+      ps.caramelDelayY += (caramelTargetY - ps.caramelDelayY) * Math.min(1, dt * 15);
     }
 
     sk.translate(0,dy);
     sk.rotate(rot);
     sk.scale(scX,scY);
 
+    const isFront = scX >= 0;
+
     const w=size, h=size*0.85;
-    const j=S.jiggle;
+    const jiggleBoost = ps ? ps.jiggleBoost : 0;
+    let jiggleMul = 1;
+    if (inReaction) {
+      jiggleMul = 0;
+    } else {
+      jiggleMul = danceInfluence * (1 + jiggleBoost);
+    }
+    const j = S.jiggle * jiggleMul;
     const jig=(freq,amp)=>Math.sin(time*freq+idx*2)*amp*j;
     const bodyTop=-h*0.45, bodyBot=h*0.4;
 
     const outline = makePuddingOutline(w,h,bodyTop,bodyBot,jig);
     const pts = outline.pts;
 
-    sk.noStroke(); sk.fill(S.colBody);
+    // 本体
+    const bodyColor = adjustColor(sk, S.colBody, colorFactor);
+    sk.noStroke(); sk.fill(bodyColor);
     sk.beginShape();
     for(const p of pts) sk.vertex(p.x,p.y);
     sk.endShape(sk.CLOSE);
 
+    // カラメル（表・裏どちらでも描画）
+    const caramelOffsetY = ps ? ps.caramelDelayY : 0;
+    const caraColor = adjustColor(sk, S.colCara, colorFactor);
     sk.drawingContext.save();
     sk.drawingContext.beginPath();
     for(let i=0;i<pts.length;i++){
@@ -673,115 +952,119 @@ new p5(sk => {
     }
     sk.drawingContext.closePath();
     sk.drawingContext.clip();
-    sk.fill(S.colCara);
-    sk.rect(-w, bodyTop-h*0.2, w*2, (bodyTop+h*0.06)-(bodyTop-h*0.2));
+    sk.fill(caraColor);
+    sk.rect(-w, bodyTop-h*0.2+caramelOffsetY, w*2, (bodyTop+h*0.06)-(bodyTop-h*0.2));
     sk.drawingContext.restore();
 
-    const eyeY=-h*0.05+jig(2,1.5);
-    const eyeSpacing=w*0.17;
-    const eyeBase=size*0.06;
-    const es=expr.eyeScale;
-    const maxLook = eyeBase * 0.9;
+    // 顔・頬は表側のときだけ
+    if (isFront) {
+      const eyeY=-h*0.05+jig(2,1.5);
+      const eyeSpacing=w*0.17;
+      const eyeBase=size*0.06;
+      const es=expr.eyeScale;
+      const maxLook = eyeBase * 0.9;
 
-    const isGazing = (gazeTarget === idx);
+      const isGazing = (gazeTarget === idx);
 
-    let targetLookX, targetLookY;
-    if (isGazing) {
-      const localMX = (sk.mouseX - px) / scX;
-      const localMY = (sk.mouseY - py - dy) / scY;
-      const dxL = localMX;
-      const dyL = localMY - eyeY;
-      const dist = Math.sqrt(dxL * dxL + dyL * dyL) || 1;
-      const strength = Math.min(1, dist / (size * 0.5));
-      targetLookX = (dxL / dist) * maxLook * strength;
-      targetLookY = (dyL / dist) * maxLook * strength * 0.7;
-    } else {
-      targetLookX = Math.sin(time*1.3+idx)*2.5;
-      targetLookY = Math.cos(time*0.9+idx)*1.5;
-    }
+      let targetLookX, targetLookY;
+      if (isGazing) {
+        const localMX = (sk.mouseX - px) / (scX || 0.001);
+        const localMY = (sk.mouseY - py - dy) / (scY || 0.001);
+        const dxL = localMX;
+        const dyL = localMY - eyeY;
+        const dist = Math.sqrt(dxL * dxL + dyL * dyL) || 1;
+        const strength = Math.min(1, dist / (size * 0.5));
+        targetLookX = (dxL / dist) * maxLook * strength;
+        targetLookY = (dyL / dist) * maxLook * strength * 0.7;
+      } else {
+        targetLookX = Math.sin(time*1.3+idx)*2.5;
+        targetLookY = Math.cos(time*0.9+idx)*1.5;
+      }
 
-    const gs = gazeSmooth[idx % gazeSmooth.length];
-    const lerpSpeed = isGazing ? 10 : 4;
-    gs.x += (targetLookX - gs.x) * Math.min(1, dt * lerpSpeed);
-    gs.y += (targetLookY - gs.y) * Math.min(1, dt * lerpSpeed);
-    const lookX = gs.x;
-    const lookY = gs.y;
+      const gs = gazeSmooth[idx % gazeSmooth.length];
+      const lerpSpeed = isGazing ? 10 : 4;
+      gs.x += (targetLookX - gs.x) * Math.min(1, dt * lerpSpeed);
+      gs.y += (targetLookY - gs.y) * Math.min(1, dt * lerpSpeed);
+      const lookX = gs.x;
+      const lookY = gs.y;
 
-    const isBlinking = bs.blinking;
-    const bStyle = bs.blinkStyle;
+      const isBlinking = bs.blinking;
+      const bStyle = bs.blinkStyle;
 
-    sk.noStroke();
+      sk.noStroke();
 
-    if(isBlinking){
-      sk.stroke(40,30,20,180);
-      sk.strokeWeight(1.8);
-      sk.noFill();
-      const ew = eyeBase*2.5*es;
-      if(bStyle === 'shut'){
-        sk.line(-eyeSpacing-ew/2, eyeY, -eyeSpacing+ew/2, eyeY);
-        sk.line(eyeSpacing-ew/2, eyeY, eyeSpacing+ew/2, eyeY);
-      } else if(bStyle === 'squint'){
-        sk.arc(-eyeSpacing, eyeY-2, ew, eyeBase*1.2, 0.2, Math.PI-0.2);
-        sk.arc(eyeSpacing, eyeY-2, ew, eyeBase*1.2, 0.2, Math.PI-0.2);
-      } else if(bStyle === 'happy'){
-        sk.arc(-eyeSpacing, eyeY+2, ew, eyeBase*1.5, Math.PI+0.3, -0.3);
-        sk.arc(eyeSpacing, eyeY+2, ew, eyeBase*1.5, Math.PI+0.3, -0.3);
+      if(isBlinking){
+        sk.stroke(40,30,20,180);
+        sk.strokeWeight(1.8);
+        sk.noFill();
+        const ew = eyeBase*2.5*es;
+        if(bStyle === 'shut'){
+          sk.line(-eyeSpacing-ew/2, eyeY, -eyeSpacing+ew/2, eyeY);
+          sk.line(eyeSpacing-ew/2, eyeY, eyeSpacing+ew/2, eyeY);
+        } else if(bStyle === 'squint'){
+          sk.arc(-eyeSpacing, eyeY-2, ew, eyeBase*1.2, 0.2, Math.PI-0.2);
+          sk.arc(eyeSpacing, eyeY-2, ew, eyeBase*1.2, 0.2, Math.PI-0.2);
+        } else if(bStyle === 'happy'){
+          sk.arc(-eyeSpacing, eyeY+2, ew, eyeBase*1.5, Math.PI+0.3, -0.3);
+          sk.arc(eyeSpacing, eyeY+2, ew, eyeBase*1.5, Math.PI+0.3, -0.3);
+        }
+        sk.noStroke();
+      } else {
+        sk.fill(255);
+        sk.push(); sk.translate(-eyeSpacing,eyeY);
+        sk.ellipse(0,0,eyeBase*2.5*es,eyeBase*2.8*es); sk.pop();
+        sk.push(); sk.translate(eyeSpacing,eyeY);
+        sk.ellipse(0,0,eyeBase*2.5*es,eyeBase*2.8*es); sk.pop();
+
+        sk.fill(25);
+        sk.ellipse(-eyeSpacing+lookX,eyeY+lookY,eyeBase*1.5*es,eyeBase*1.7*es);
+        sk.ellipse(eyeSpacing+lookX,eyeY+lookY,eyeBase*1.5*es,eyeBase*1.7*es);
+        sk.fill(255);
+        sk.ellipse(-eyeSpacing+lookX-1.5,eyeY+lookY-1.5,eyeBase*0.55,eyeBase*0.55);
+        sk.ellipse(eyeSpacing+lookX-1.5,eyeY+lookY-1.5,eyeBase*0.55,eyeBase*0.55);
+      }
+
+      const cheekBoost = ps ? ps.cheekBoost : 0;
+      const cheekAlphaEff = Math.min(1.0, S.cheekAlpha + cheekBoost * 0.5);
+      const cheekCol = sk.color(S.colCheek);
+      cheekCol.setAlpha(cheekAlphaEff * 255);
+      sk.fill(cheekCol);
+      sk.ellipse(-eyeSpacing-w*0.13, eyeY+size*0.08, size*0.15, size*0.09);
+      sk.ellipse(eyeSpacing+w*0.13, eyeY+size*0.08, size*0.15, size*0.09);
+
+      const mouthY=eyeY+size*0.12;
+      const mSize=size*0.05;
+      switch(expr.mouthType){
+        case 'smile':
+          sk.noFill();sk.stroke(80,50,30,130);sk.strokeWeight(1.5);
+          sk.arc(0,mouthY,mSize*2,mSize*1.2,0.1,Math.PI-0.1);break;
+        case 'grin':
+          sk.noFill();sk.stroke(80,50,30,130);sk.strokeWeight(1.5);
+          sk.arc(0,mouthY,mSize*2.8,mSize*1.8,0.05,Math.PI-0.05);break;
+        case 'oh':
+          sk.noStroke();sk.fill(80,50,30,100);
+          sk.ellipse(0,mouthY,mSize*1.2,mSize*1.6);break;
+        case 'open':
+          sk.noStroke();sk.fill(80,50,30,120);
+          sk.ellipse(0,mouthY,mSize*2,mSize*2.4);
+          sk.fill(255,100,120,70);
+          sk.ellipse(0,mouthY+mSize*0.4,mSize*0.8,mSize*0.5);break;
+        case 'smirk':
+          sk.noFill();sk.stroke(80,50,30,130);sk.strokeWeight(1.5);
+          sk.arc(mSize*0.3,mouthY,mSize*1.8,mSize*1.0,0.2,Math.PI*0.7);break;
+        case 'hehe':
+          sk.noStroke();sk.fill(80,50,30,110);
+          sk.arc(0,mouthY,mSize*2.2,mSize*1.6,0,Math.PI,sk.CHORD);break;
+        case 'pout':
+          sk.noFill();sk.stroke(80,50,30,130);sk.strokeWeight(1.5);
+          sk.arc(0,mouthY+mSize*0.3,mSize*1.4,mSize*0.8,Math.PI+0.2,-0.2);break;
+        case 'laugh':
+          sk.noStroke();sk.fill(80,50,30,130);
+          sk.arc(0,mouthY,mSize*2.8,mSize*2.2,0,Math.PI,sk.CHORD);break;
       }
       sk.noStroke();
-    } else {
-      sk.fill(255);
-      sk.push(); sk.translate(-eyeSpacing,eyeY);
-      sk.ellipse(0,0,eyeBase*2.5*es,eyeBase*2.8*es); sk.pop();
-      sk.push(); sk.translate(eyeSpacing,eyeY);
-      sk.ellipse(0,0,eyeBase*2.5*es,eyeBase*2.8*es); sk.pop();
-
-      sk.fill(25);
-      sk.ellipse(-eyeSpacing+lookX,eyeY+lookY,eyeBase*1.5*es,eyeBase*1.7*es);
-      sk.ellipse(eyeSpacing+lookX,eyeY+lookY,eyeBase*1.5*es,eyeBase*1.7*es);
-      sk.fill(255);
-      sk.ellipse(-eyeSpacing+lookX-1.5,eyeY+lookY-1.5,eyeBase*0.55,eyeBase*0.55);
-      sk.ellipse(eyeSpacing+lookX-1.5,eyeY+lookY-1.5,eyeBase*0.55,eyeBase*0.55);
     }
 
-    const cheekCol = sk.color(S.colCheek);
-    cheekCol.setAlpha(S.cheekAlpha * 255);
-    sk.fill(cheekCol);
-    sk.ellipse(-eyeSpacing-w*0.13, eyeY+size*0.08, size*0.15, size*0.09);
-    sk.ellipse(eyeSpacing+w*0.13, eyeY+size*0.08, size*0.15, size*0.09);
-
-    const mouthY=eyeY+size*0.12;
-    const mSize=size*0.05;
-    switch(expr.mouthType){
-      case 'smile':
-        sk.noFill();sk.stroke(80,50,30,130);sk.strokeWeight(1.5);
-        sk.arc(0,mouthY,mSize*2,mSize*1.2,0.1,Math.PI-0.1);break;
-      case 'grin':
-        sk.noFill();sk.stroke(80,50,30,130);sk.strokeWeight(1.5);
-        sk.arc(0,mouthY,mSize*2.8,mSize*1.8,0.05,Math.PI-0.05);break;
-      case 'oh':
-        sk.noStroke();sk.fill(80,50,30,100);
-        sk.ellipse(0,mouthY,mSize*1.2,mSize*1.6);break;
-      case 'open':
-        sk.noStroke();sk.fill(80,50,30,120);
-        sk.ellipse(0,mouthY,mSize*2,mSize*2.4);
-        sk.fill(255,100,120,70);
-        sk.ellipse(0,mouthY+mSize*0.4,mSize*0.8,mSize*0.5);break;
-      case 'smirk':
-        sk.noFill();sk.stroke(80,50,30,130);sk.strokeWeight(1.5);
-        sk.arc(mSize*0.3,mouthY,mSize*1.8,mSize*1.0,0.2,Math.PI*0.7);break;
-      case 'hehe':
-        sk.noStroke();sk.fill(80,50,30,110);
-        sk.arc(0,mouthY,mSize*2.2,mSize*1.6,0,Math.PI,sk.CHORD);break;
-      case 'pout':
-        sk.noFill();sk.stroke(80,50,30,130);sk.strokeWeight(1.5);
-        sk.arc(0,mouthY+mSize*0.3,mSize*1.4,mSize*0.8,Math.PI+0.2,-0.2);break;
-      case 'laugh':
-        sk.noStroke();sk.fill(80,50,30,130);
-        sk.arc(0,mouthY,mSize*2.8,mSize*2.2,0,Math.PI,sk.CHORD);
-        sk.fill(255,100,120,80);
-        sk.ellipse(0,mouthY+mSize*0.5,mSize*1.0,mSize*0.5);break;
-    }
-    sk.noStroke();
     sk.pop();
   }
 });
