@@ -43,6 +43,7 @@ input[type=color]{width:100%;height:28px;border:1px solid #333;border-radius:5px
 button{width:100%;padding:6px;background:#333;color:#eee;border:1px solid #444;border-radius:5px;cursor:pointer;font-size:12px;margin-top:3px}
 button:hover{background:#444}
 button.on{background:#664488;border-color:#886aaa}
+button.audio-on{background:#446688;border-color:#6688aa}
 .sep{font-size:9px;opacity:0.35;letter-spacing:2px;margin:12px 0 6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.06)}
 </style>
 </head>
@@ -82,6 +83,8 @@ button.on{background:#664488;border-color:#886aaa}
     <label>Puddings <span class="v" id="cntVal">1</span><span class="lock" data-target="count">🔓</span></label>
     <input type="range" id="cnt" min="1" max="9" step="2" value="1">
   </div>
+
+  <button id="btnAudio">🎤 Enable Audio Input</button>
 
   <div class="sep">FORMATION</div>
 
@@ -194,12 +197,66 @@ const S = {
   circleRadius:200,
   auto:false, autoTimer:0, autoInterval:6,
   zoom:1.0,
+  audioLevel: 0, // ← NEW: 現在の音量（0〜1）
+  afterglow: 0, // ← NEW: 音が消えた後の残り香
   locks: {
     bpm:false, jiggle:false, sync:false, count:false,
     spacing:false, radius:false, cheekAlpha:false, autoInterval:false
   }
 };
 const danceList = ['bounce','twist','sway','hop'];
+
+// ── Audio Input (NEW) ──
+let audioCtx = null;
+let analyser = null;
+let dataArray = null;
+let audioEnabled = false;
+
+async function enableAudio() {
+  if (audioEnabled) return;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const source = audioCtx.createMediaStreamSource(stream);
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 512;
+    analyser.smoothingTimeConstant = 0.8;
+    source.connect(analyser);
+    dataArray = new Uint8Array(analyser.fftSize);
+    audioEnabled = true;
+    const btn = document.getElementById('btnAudio');
+    btn.textContent = '🎤 Audio ON';
+    btn.classList.add('audio-on');
+    console.log('Audio input enabled');
+  } catch (err) {
+    console.error('Audio input failed:', err);
+    alert('マイク許可が取れませんでした: ' + err.message);
+  }
+}
+
+function updateAudioLevel() {
+  if (!analyser || !dataArray) return;
+  analyser.getByteTimeDomainData(dataArray);
+  // RMS 計算
+  let sum = 0;
+  for (let i = 0; i < dataArray.length; i++) {
+    const v = (dataArray[i] - 128) / 128; // -1 〜 +1
+    sum += v * v;
+  }
+  const rms = Math.sqrt(sum / dataArray.length);
+  //増幅してから滑らか合成
+  const boosted = Math.min(1, rms * 6);
+  // アタック速く、リリース遅く（非対称減衰）
+  if (boosted > S.audioLevel) {
+    S.audioLevel = S.audioLevel * 0.5 + boosted * 0.5;   // 立ち上がりは速く
+  } else {
+    S.audioLevel = S.audioLevel * 0.98 + boosted * 0.02; // 減衰はゆっくり
+  }
+  // afterglow 更新: 音があると1.0にリセット、無音時はゆっくり減衰
+  if (S.audioLevel > 0.15) S.afterglow = 1.0;
+  else S.afterglow = Math.max(0, S.afterglow - 0.008);
+}
+
 
 const facePool = [
   {eyeScale:1.0,  mouthType:'smile',  blinkRate:0.03},
@@ -237,14 +294,13 @@ function ensurePuddingStates(n) {
       fx: 0, fy: 0,
       prevY: 0,
       detached: false,
-      detachX: 0, detachY: 0, // ドラッグ後の定位置（Motion offsetの基準点）
+      detachX: 0, detachY: 0,
       beatOffset: Math.random(),
       jitterPhase: Math.random() * Math.PI * 2,
       jitterAmp: 0.5 + Math.random() * 0.5,
       jitterSpeed: 0.8 + Math.random() * 0.4,
       jitterDirX: Math.random() - 0.5,
       jitterDirY: Math.random() - 0.5,
-      // Click reaction
       clickReaction: null,
       recoveryTimer: 0,
       cheekBoost: 0,
@@ -312,7 +368,6 @@ function getFormationBase(i, count, cx, cy, baseSize) {
   }
 
   if (S.formation === 'vshape') {
-    // 谷型（∨）：中央が下、両端が上
     const half = (count - 1) / 2;
     const rel = i - half;
     return {
@@ -322,7 +377,6 @@ function getFormationBase(i, count, cx, cy, baseSize) {
   }
 
   if (S.formation === 'zigzag') {
-    // 上下交互
     const rel = i - (count - 1) / 2;
     const zigY = (i % 2 === 0) ? -spacing * 0.35 : spacing * 0.35;
     return {
@@ -332,8 +386,7 @@ function getFormationBase(i, count, cx, cy, baseSize) {
   }
 
   if (S.formation === 'spiral') {
-    // 中央から外に螺旋
-    const armAngle = i * (Math.PI * 2 / 3.5); // 螺旋の巻き速度
+    const armAngle = i * (Math.PI * 2 / 3.5);
     const radius = spacing * 0.35 * i;
     return {
       x: cx + Math.cos(armAngle) * radius,
@@ -404,11 +457,10 @@ function getMotionOffset(i, count, baseSize, beat, basePos, cx, cy) {
       break;
     }
     case 'jitter': {
-      // 極振り：完全にランダム方向にビクビク動く
       const ps = puddingStates[i];
       if (ps) {
-        const speed = ps.jitterSpeed * 3.5; // 速い
-        const amp = baseSize * 0.7 * ps.jitterAmp; // 大きい
+        const speed = ps.jitterSpeed * 3.5;
+        const amp = baseSize * 0.7 * ps.jitterAmp;
         dx = Math.sin(t2pi * speed + ps.jitterPhase) * amp * ps.jitterDirX * 2;
         dy = Math.cos(t2pi * speed * 1.3 + ps.jitterPhase * 1.7) * amp * ps.jitterDirY * 2;
       }
@@ -445,7 +497,6 @@ function getMotionOffset(i, count, baseSize, beat, basePos, cx, cy) {
   return { dx, dy, sizeScale, colorFactor };
 }
 
-// ── Target合成 ──
 function getFormationTarget(i, count, cx, cy, baseSize, beat) {
   const base = getFormationBase(i, count, cx, cy, baseSize);
   const m = getMotionOffset(i, count, baseSize, beat, base, cx, cy);
@@ -457,7 +508,6 @@ function getFormationTarget(i, count, cx, cy, baseSize, beat) {
   };
 }
 
-// detached プリン用：detach位置を基準にMotion offsetだけ適用
 function getDetachedTarget(ps, i, count, cx, cy, baseSize, beat) {
   const virtualBase = { x: ps.detachX, y: ps.detachY };
   const m = getMotionOffset(i, count, baseSize, beat, virtualBase, cx, cy);
@@ -469,7 +519,6 @@ function getDetachedTarget(ps, i, count, cx, cy, baseSize, beat) {
   };
 }
 
-// ── Smooth follow ──
 function updateSmoothPosition(ps, target, dt) {
   if (!ps.posReady) {
     ps.fx = target.x;
@@ -558,6 +607,7 @@ $('autoInt').oninput=e=>{S.autoInterval=+e.target.value;$('intVal').textContent=
 $('btnManual').onclick=()=>{S.auto=false;$('btnManual').classList.add('on');$('btnAuto').classList.remove('on')};
 $('btnAuto').onclick=()=>{S.auto=true;$('btnAuto').classList.add('on');$('btnManual').classList.remove('on')};
 $('btnReset').onclick=()=>{ resetAllPositions(); };
+$('btnAudio').onclick=()=>{ enableAudio(); };
 
 updateVisibleControls();
 
@@ -706,10 +756,8 @@ new p5(sk => {
       hasDragged = true;
       const ps = puddingStates[selectedIndex];
       ps.detached = true;
-      // ドラッグ中はマウス位置をそのまま定位置に設定（Motion offsetは描画時に加算される）
       ps.detachX = sk.mouseX + dragOffsetX;
       ps.detachY = sk.mouseY + dragOffsetY;
-      // 表示位置もドラッグ中は瞬時に追従（Motionの補間は次フレームから）
       ps.fx = ps.detachX;
       ps.fy = ps.detachY;
       ps.posReady = true;
@@ -734,6 +782,9 @@ new p5(sk => {
     t += dt;
     smoothBPM += (S.bpm-smoothBPM)*Math.min(1,dt*3);
     sk.background(S.colBg);
+
+    // Audio level update
+    updateAudioLevel();
 
     ensurePuddingStates(S.count);
 
@@ -806,16 +857,13 @@ new p5(sk => {
       let pos, sizeScale = 1, colorFactor = 1;
 
       if (i === selectedIndex && hasDragged) {
-        // ドラッグ中：マウス位置に瞬時追従、Motion効かせない
         pos = { x: ps.fx, y: ps.fy };
       } else if (ps.detached) {
-        // ドラッグ後：detach位置を中心にMotion offsetを乗せる
         const target = getDetachedTarget(ps, i, S.count, cx, cy, baseSize, beat);
         pos = updateSmoothPosition(ps, target, dt);
         sizeScale = target.sizeScale;
         colorFactor = target.colorFactor;
       } else {
-        // 通常：Formation + Motion
         const target = getFormationTarget(i, S.count, cx, cy, baseSize, beat);
         pos = updateSmoothPosition(ps, target, dt);
         sizeScale = target.sizeScale;
@@ -872,6 +920,12 @@ new p5(sk => {
     let dy=0, rot=0, scX=1, scY=1;
     const phase = beat*Math.PI*2;
 
+    // ── Audio push (NEW): 全ダンスの跳ね幅に音量を加算 ──
+        const shaped = Math.pow(S.audioLevel, 0.6);
+        const audioPush = shaped * size * 1.5;
+
+
+
     if (inReaction) {
       dy = crTf.dy;
       scX = crTf.scX;
@@ -899,7 +953,11 @@ new p5(sk => {
           danceScY=danceDy<-size*0.05?1.08:0.9;
           danceScX=danceDy<-size*0.05?0.93:1.08; break;
       }
-      dy = danceDy * danceInfluence;
+      const totalSuppress = Math.max(shaped, S.afterglow * 0.6);
+      const danceSuppress = 1 - totalSuppress;
+
+      dy = danceDy * danceInfluence * danceSuppress - audioPush;
+
       rot = danceRot * danceInfluence;
       scX = 1 + (danceScX - 1) * danceInfluence;
       scY = 1 + (danceScY - 1) * danceInfluence;
@@ -934,14 +992,12 @@ new p5(sk => {
     const outline = makePuddingOutline(w,h,bodyTop,bodyBot,jig);
     const pts = outline.pts;
 
-    // 本体
     const bodyColor = adjustColor(sk, S.colBody, colorFactor);
     sk.noStroke(); sk.fill(bodyColor);
     sk.beginShape();
     for(const p of pts) sk.vertex(p.x,p.y);
     sk.endShape(sk.CLOSE);
 
-    // カラメル（表・裏どちらでも描画）
     const caramelOffsetY = ps ? ps.caramelDelayY : 0;
     const caraColor = adjustColor(sk, S.colCara, colorFactor);
     sk.drawingContext.save();
@@ -956,7 +1012,6 @@ new p5(sk => {
     sk.rect(-w, bodyTop-h*0.2+caramelOffsetY, w*2, (bodyTop+h*0.06)-(bodyTop-h*0.2));
     sk.drawingContext.restore();
 
-    // 顔・頬は表側のときだけ
     if (isFront) {
       const eyeY=-h*0.05+jig(2,1.5);
       const eyeSpacing=w*0.17;
