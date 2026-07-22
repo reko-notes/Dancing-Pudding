@@ -13,7 +13,7 @@
 <meta property="twitter:image:src" content="https://reko-notes.github.io/Dancing-Pudding/images/ogp.png">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" href="favicon-32x32.png" type="image/png" sizes="32x32">
-<title>Dancing Pudding 2D</title>
+<title>Dancing Pudding 2D — index35 prototype</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{width:100%;height:100%;overflow:hidden;background:#1a1a2e}
@@ -44,7 +44,17 @@ button{width:100%;padding:6px;background:#333;color:#eee;border:1px solid #444;b
 button:hover{background:#444}
 button.on{background:#664488;border-color:#886aaa}
 button.audio-on{background:#446688;border-color:#6688aa}
+button.file-on{background:#446644;border-color:#66aa66}
 .sep{font-size:9px;opacity:0.35;letter-spacing:2px;margin:12px 0 6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.06)}
+#fileInput{display:none}
+#mediaPreview{position:fixed;bottom:16px;left:16px;z-index:15;
+  background:rgba(15,15,30,0.85);border:1px solid rgba(255,255,255,0.1);border-radius:8px;
+  padding:6px;backdrop-filter:blur(8px);display:none;max-width:220px}
+#mediaPreview.visible{display:block}
+#mediaPreview video{width:200px;height:auto;display:block;border-radius:4px}
+#mediaPreview audio{width:200px;display:block}
+#mediaPreview .fname{color:#ccc;font-size:11px;margin-top:4px;font-family:system-ui,sans-serif;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 </style>
 </head>
 <body>
@@ -85,6 +95,8 @@ button.audio-on{background:#446688;border-color:#6688aa}
   </div>
 
   <button id="btnAudio">🎤 Enable Audio Input</button>
+  <button id="btnFile">📁 Load Audio/Video File</button>
+  <input type="file" id="fileInput" accept="audio/*,video/*">
 
   <div class="sep">FORMATION</div>
 
@@ -164,6 +176,11 @@ button.audio-on{background:#446688;border-color:#6688aa}
   </div>
 </div>
 
+<div id="mediaPreview">
+  <div id="mediaContainer"></div>
+  <div class="fname" id="fileName"></div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
 <script>
 // ── GUI toggle ──
@@ -197,8 +214,29 @@ const S = {
   circleRadius:200,
   auto:false, autoTimer:0, autoInterval:6,
   zoom:1.0,
-  audioLevel: 0, // ← NEW: 現在の音量（0〜1）
-  afterglow: 0, // ← NEW: 音が消えた後の残り香
+  audioLevel: 0,
+  beatLevel: 0,
+  afterglow: 0,
+  listeningMode: 0,
+  listeningBlend: 0,
+  timeSinceSound: 999,
+  noiseFloor: 0.015,
+  bassFloor: 0.04,
+  prevBassRaw: 0,
+  micCalibration: 0,
+
+  // マイク発話用。ジャンプではなく、接地した上体の変形へ使う。
+  voicePresence: 0,
+  voiceBrightness: 0.45,
+  prevVoiceBrightness: 0.45,
+  prevVoiceLevel: 0,
+  voiceSilence: 999,
+  voiceCooldown: 0,
+  voiceLean: 0,
+  voiceLeanVel: 0,
+  voiceShape: 0,
+  voiceShapeVel: 0,
+  voiceAccentDir: 1,
   locks: {
     bpm:false, jiggle:false, sync:false, count:false,
     spacing:false, radius:false, cheekAlpha:false, autoInterval:false
@@ -206,55 +244,422 @@ const S = {
 };
 const danceList = ['bounce','twist','sway','hop'];
 
-// ── Audio Input (NEW) ──
+// ── Audio Input (共通) ──
 let audioCtx = null;
 let analyser = null;
 let dataArray = null;
-let audioEnabled = false;
+let freqArray = null;
+let audioSourceType = null;
+let micStream = null;
+let micSourceNode = null;
+let micHighpassNode = null;
+let fileSourceNode = null;
+let mediaEl = null;
 
-async function enableAudio() {
-  if (audioEnabled) return;
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+function isAudioAnalysisActive() {
+  if (audioSourceType === 'mic') return !!micStream;
+  if (audioSourceType === 'file') {
+    return !!mediaEl && !mediaEl.paused && !mediaEl.ended && mediaEl.readyState >= 2;
+  }
+  return false;
+}
+
+function resetAudioMotionState(startGracePeriod = false) {
+  S.audioLevel = 0;
+  S.beatLevel = 0;
+  S.afterglow = 0;
+  S.timeSinceSound = startGracePeriod ? 0 : 999;
+  S.listeningMode = 0;
+  S.listeningBlend = 0;
+  S.prevBassRaw = 0;
+
+  S.voicePresence = 0;
+  S.voiceBrightness = 0.45;
+  S.prevVoiceBrightness = 0.45;
+  S.prevVoiceLevel = 0;
+  S.voiceSilence = 999;
+  S.voiceCooldown = 0;
+  S.voiceLean = 0;
+  S.voiceLeanVel = 0;
+  S.voiceShape = 0;
+  S.voiceShapeVel = 0;
+  S.voiceAccentDir = 1;
+}
+
+function ensureAudioCtx() {
+  if (!audioCtx) {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const source = audioCtx.createMediaStreamSource(stream);
     analyser = audioCtx.createAnalyser();
     analyser.fftSize = 512;
     analyser.smoothingTimeConstant = 0.8;
-    source.connect(analyser);
     dataArray = new Uint8Array(analyser.fftSize);
-    audioEnabled = true;
-    const btn = document.getElementById('btnAudio');
-    btn.textContent = '🎤 Audio ON';
-    btn.classList.add('audio-on');
-    console.log('Audio input enabled');
+    freqArray = new Uint8Array(analyser.frequencyBinCount);
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function disconnectCurrentSource() {
+  if (micSourceNode) {
+    try { micSourceNode.disconnect(); } catch(e) {}
+    micSourceNode = null;
+  }
+  if (micHighpassNode) {
+    try { micHighpassNode.disconnect(); } catch(e) {}
+    micHighpassNode = null;
+  }
+  if (micStream) {
+    try { micStream.getTracks().forEach(t => t.stop()); } catch(e) {}
+    micStream = null;
+  }
+  if (fileSourceNode) {
+    try { fileSourceNode.disconnect(); } catch(e) {}
+    fileSourceNode = null;
+  }
+  if (mediaEl) {
+    try { mediaEl.pause(); mediaEl.src = ''; } catch(e) {}
+    const container = document.getElementById('mediaContainer');
+    if (container) container.innerHTML = '';
+    document.getElementById('mediaPreview').classList.remove('visible');
+    mediaEl = null;
+  }
+  audioSourceType = null;
+  S.micCalibration = 0;
+  S.noiseFloor = 0.015;
+  S.bassFloor = 0.04;
+  resetAudioMotionState(false);
+}
+
+function updateButtonStates() {
+  const btnAudio = document.getElementById('btnAudio');
+  const btnFile = document.getElementById('btnFile');
+
+  btnAudio.classList.remove('audio-on');
+  btnFile.classList.remove('file-on');
+  btnAudio.textContent = '🎤 Enable Audio Input';
+  btnFile.textContent = '📁 Load Audio/Video File';
+
+  if (audioSourceType === 'mic') {
+    btnAudio.textContent = '🎤 Audio OFF';
+    btnAudio.classList.add('audio-on');
+  } else if (audioSourceType === 'file') {
+    btnFile.textContent = '📁 File OFF';
+    btnFile.classList.add('file-on');
+  }
+}
+
+async function toggleMic() {
+  if (audioSourceType === 'mic') {
+    disconnectCurrentSource();
+    updateButtonStates();
+    console.log('Mic input disabled');
+    return;
+  }
+  try {
+    ensureAudioCtx();
+    disconnectCurrentSource();
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: false,
+        channelCount: 1
+      }
+    });
+    micStream = stream;
+    micSourceNode = audioCtx.createMediaStreamSource(stream);
+
+    // 空調・扇風機・机の振動など、低すぎる連続音を先に弱める。
+    micHighpassNode = audioCtx.createBiquadFilter();
+    micHighpassNode.type = 'highpass';
+    micHighpassNode.frequency.value = 75;
+    micHighpassNode.Q.value = 0.7;
+    micSourceNode.connect(micHighpassNode);
+    micHighpassNode.connect(analyser);
+
+    audioSourceType = 'mic';
+    S.noiseFloor = 0.015;
+    S.bassFloor = 0.04;
+    S.micCalibration = 1.2;
+    resetAudioMotionState(true);
+    updateButtonStates();
+    console.log('Mic input enabled');
   } catch (err) {
-    console.error('Audio input failed:', err);
+    console.error('Mic input failed:', err);
     alert('マイク許可が取れませんでした: ' + err.message);
   }
 }
 
-function updateAudioLevel() {
-  if (!analyser || !dataArray) return;
+function toggleFile() {
+  if (audioSourceType === 'file') {
+    disconnectCurrentSource();
+    updateButtonStates();
+    console.log('File input disabled');
+    return;
+  }
+  document.getElementById('fileInput').click();
+}
+
+function loadMediaFile(file) {
+  if (!file) return;
+  try {
+    ensureAudioCtx();
+    disconnectCurrentSource();
+
+    const isVideo = file.type.startsWith('video/');
+    const url = URL.createObjectURL(file);
+    const container = document.getElementById('mediaContainer');
+    container.innerHTML = '';
+
+    const el = document.createElement(isVideo ? 'video' : 'audio');
+    el.src = url;
+    el.controls = true;
+    el.loop = true;
+    el.crossOrigin = 'anonymous';
+    if (isVideo) {
+      el.playsInline = true;
+    }
+    container.appendChild(el);
+    mediaEl = el;
+
+    document.getElementById('fileName').textContent = file.name;
+    document.getElementById('mediaPreview').classList.add('visible');
+
+    fileSourceNode = audioCtx.createMediaElementSource(el);
+    fileSourceNode.connect(analyser);
+    fileSourceNode.connect(audioCtx.destination);
+
+    audioSourceType = 'file';
+    resetAudioMotionState(true);
+    updateButtonStates();
+
+    // ファイルは「読み込まれているか」ではなく「再生中か」で音モードを切り替える。
+    // プレイヤーを一時停止したら通常ダンスへ戻り、再生すると音反応へ復帰する。
+    el.addEventListener('play', () => {
+      resetAudioMotionState(true);
+      if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    });
+    el.addEventListener('pause', () => {
+      resetAudioMotionState(true);
+    });
+    el.addEventListener('ended', () => {
+      resetAudioMotionState(true);
+    });
+
+    el.play().catch(err => console.warn('Autoplay blocked, click play manually:', err));
+    console.log('File loaded:', file.name);
+  } catch (err) {
+    console.error('File load failed:', err);
+    alert('ファイル読み込みに失敗しました: ' + err.message);
+  }
+}
+
+// ── 音の解析 ──
+const LISTENING_HOLD_SEC = 5.0;
+const LISTENING_FADE_START_SEC = 4.0;
+const LISTENING_EXIT_SPEED = 11.0;
+const LISTENING_TRIGGER = 0.18;
+const SOUND_PRESENT_TRIGGER = 0.10;
+const BASS_PRESENT_TRIGGER = 0.16;
+
+const clamp01 = v => Math.max(0, Math.min(1, v));
+const smooth01 = v => {
+  const x = clamp01(v);
+  return x * x * (3 - 2 * x);
+};
+
+function updateVoiceBodyMotion(dt, isMic, calibrating, boosted, bassBoost, brightness) {
+  const voiceNow = isMic && !calibrating && boosted > 0.075;
+  const previousSilence = S.voiceSilence;
+  S.voiceSilence = voiceNow ? 0 : S.voiceSilence + dt;
+  S.voiceCooldown = Math.max(0, S.voiceCooldown - dt);
+
+  const presenceTarget = voiceNow ? clamp01((boosted - 0.055) * 1.65) : 0;
+  const presenceRate = presenceTarget > S.voicePresence ? 12 : 6.5;
+  S.voicePresence += (presenceTarget - S.voicePresence) * Math.min(1, dt * presenceRate);
+
+  const brightnessRate = voiceNow ? 7.5 : 2.5;
+  S.voiceBrightness += (brightness - S.voiceBrightness) * Math.min(1, dt * brightnessRate);
+
+  const onset = Math.max(0, boosted - S.prevVoiceLevel);
+  const brightnessDelta = S.voiceBrightness - S.prevVoiceBrightness;
+  const timbreShift = Math.abs(brightnessDelta);
+  const phraseStart = voiceNow && previousSilence > 0.16;
+  const lowAccent = Math.max(0, bassBoost - 0.26);
+
+  // 全フレームをイベント化しない。文節開始・明確な音量差・音色差だけを拾う。
+  const salience = Math.max(
+    phraseStart ? 0.78 : 0,
+    onset * 3.2,
+    timbreShift * 4.0,
+    lowAccent * 0.95
+  );
+
+  const dynamicThreshold = 0.24 + S.voicePresence * 0.08;
+  if (voiceNow && S.voiceCooldown <= 0 && salience > dynamicThreshold) {
+    let dir = 0;
+    if (brightnessDelta > 0.012) dir = 1;
+    else if (brightnessDelta < -0.012) dir = -1;
+    else {
+      S.voiceAccentDir *= -1;
+      dir = S.voiceAccentDir;
+    }
+
+    const impulse = Math.min(1, salience);
+    S.voiceLeanVel += dir * (0.34 + impulse * 0.52);
+    S.voiceShapeVel += 0.32 + impulse * 0.72;
+
+    // 強い声ほど少し長く間引く。小さな連続変化は presence が担当する。
+    S.voiceCooldown = 0.20 + impulse * 0.18;
+  }
+
+  // 声の明るさは上体のごく小さな方向性、音量は伸び縮みの基礎値へ。
+  const leanTarget = voiceNow
+    ? (S.voiceBrightness - 0.48) * 0.035 * (0.35 + S.voicePresence)
+    : 0;
+  const shapeTarget = voiceNow
+    ? 0.012 + S.voicePresence * 0.040 + (S.voiceBrightness - 0.45) * 0.012
+    : 0;
+
+  const leanAccel = (leanTarget - S.voiceLean) * 24 - S.voiceLeanVel * 8.0;
+  S.voiceLeanVel += leanAccel * dt;
+  S.voiceLean += S.voiceLeanVel * dt;
+  S.voiceLean = Math.max(-0.105, Math.min(0.105, S.voiceLean));
+
+  const shapeAccel = (shapeTarget - S.voiceShape) * 34 - S.voiceShapeVel * 9.0;
+  S.voiceShapeVel += shapeAccel * dt;
+  S.voiceShape += S.voiceShapeVel * dt;
+  S.voiceShape = Math.max(-0.035, Math.min(0.105, S.voiceShape));
+
+  S.prevVoiceLevel = boosted;
+  S.prevVoiceBrightness = S.voiceBrightness;
+}
+
+function updateAudioLevel(dt) {
+  const analysisActive = isAudioAnalysisActive();
+
+  // ファイル一時停止中／音入力OFF中は通常ダンスへ戻す。
+  if (!analysisActive || !analyser || !dataArray || !freqArray) {
+    S.audioLevel += (0 - S.audioLevel) * Math.min(1, dt * 12);
+    S.beatLevel += (0 - S.beatLevel) * Math.min(1, dt * 14);
+    S.afterglow = Math.max(0, S.afterglow - dt * 5);
+    S.timeSinceSound = 0;
+    S.listeningMode = 0;
+    S.listeningBlend += (0 - S.listeningBlend) * Math.min(1, dt * LISTENING_EXIT_SPEED);
+    updateVoiceBodyMotion(dt, false, false, 0, 0, 0.45);
+    return;
+  }
+
   analyser.getByteTimeDomainData(dataArray);
-  // RMS 計算
   let sum = 0;
   for (let i = 0; i < dataArray.length; i++) {
-    const v = (dataArray[i] - 128) / 128; // -1 〜 +1
+    const v = (dataArray[i] - 128) / 128;
     sum += v * v;
   }
   const rms = Math.sqrt(sum / dataArray.length);
-  //増幅してから滑らか合成
-  const boosted = Math.min(1, rms * 6);
-  // アタック速く、リリース遅く（非対称減衰）
-  if (boosted > S.audioLevel) {
-    S.audioLevel = S.audioLevel * 0.5 + boosted * 0.5;   // 立ち上がりは速く
+  const isMic = audioSourceType === 'mic';
+  const calibrating = isMic && S.micCalibration > 0;
+
+  let boosted = 0;
+  if (isMic) {
+    if (calibrating) {
+      const a = Math.min(1, dt * 6);
+      S.noiseFloor += (rms - S.noiseFloor) * a;
+      S.micCalibration = Math.max(0, S.micCalibration - dt);
+    } else {
+      const nearFloor = rms < S.noiseFloor * 1.7 + 0.01;
+      if (nearFloor) {
+        const rate = rms < S.noiseFloor ? 1.8 : 0.18;
+        S.noiseFloor += (rms - S.noiseFloor) * Math.min(1, dt * rate);
+      }
+    }
+
+    const gate = Math.max(0.012, S.noiseFloor * 1.65 + 0.006);
+    const gatedRms = rms > gate ? rms - gate : 0;
+    boosted = calibrating ? 0 : Math.min(1, gatedRms * 10);
   } else {
-    S.audioLevel = S.audioLevel * 0.98 + boosted * 0.02; // 減衰はゆっくり
+    // ファイル音源は、印象が良かった版の感度を維持する。
+    const gatedRms = rms > 0.004 ? rms - 0.004 : 0;
+    boosted = Math.min(1, gatedRms * 6.5);
   }
-  // afterglow 更新: 音があると1.0にリセット、無音時はゆっくり減衰
-  if (S.audioLevel > 0.15) S.afterglow = 1.0;
-  else S.afterglow = Math.max(0, S.afterglow - 0.008);
+
+  const audioFollow = boosted > S.audioLevel ? 0.50 : Math.min(1, dt * 5.5);
+  S.audioLevel += (boosted - S.audioLevel) * audioFollow;
+
+  analyser.getByteFrequencyData(freqArray);
+  const hzPerBin = audioCtx.sampleRate / analyser.fftSize;
+  const bassStart = Math.max(1, Math.floor(55 / hzPerBin));
+  const bassEnd = Math.min(freqArray.length, Math.ceil(220 / hzPerBin));
+  let bassSum = 0;
+  for (let i = bassStart; i < bassEnd; i++) bassSum += freqArray[i];
+  const bassRaw = bassSum / Math.max(1, bassEnd - bassStart) / 255;
+
+  let bassBoost = 0;
+  if (isMic) {
+    if (calibrating) {
+      const a = Math.min(1, dt * 6);
+      S.bassFloor += (bassRaw - S.bassFloor) * a;
+    } else if (bassRaw < S.bassFloor * 1.7 + 0.035) {
+      const rate = bassRaw < S.bassFloor ? 1.5 : 0.15;
+      S.bassFloor += (bassRaw - S.bassFloor) * Math.min(1, dt * rate);
+    }
+
+    const bassGate = S.bassFloor * 1.5 + 0.025;
+    const excess = Math.max(0, bassRaw - bassGate);
+    const transient = Math.max(0, bassRaw - S.prevBassRaw);
+    bassBoost = calibrating ? 0 : Math.min(1, excess * 4.5 + transient * 5.5);
+  } else {
+    // ファイルのキック感は基準版どおり。
+    bassBoost = Math.min(1, bassRaw * 2.5);
+  }
+  S.prevBassRaw = bassRaw;
+
+  const beatFollow = bassBoost > S.beatLevel ? 0.68 : Math.min(1, dt * 8);
+  S.beatLevel += (bassBoost - S.beatLevel) * beatFollow;
+
+  // 発話用のざっくりした音色重心。厳密なピッチ検出ではなく、声の明暗変化を見る。
+  let brightness = S.voiceBrightness;
+  if (isMic && !calibrating) {
+    const speechStart = Math.max(1, Math.floor(100 / hzPerBin));
+    const speechEnd = Math.min(freqArray.length, Math.ceil(3200 / hzPerBin));
+    let energy = 0;
+    let weightedHz = 0;
+    for (let i = speechStart; i < speechEnd; i++) {
+      const e = Math.pow(freqArray[i] / 255, 1.7);
+      const hz = i * hzPerBin;
+      energy += e;
+      weightedHz += hz * e;
+    }
+    if (energy > 0.001) {
+      const centroidHz = weightedHz / energy;
+      brightness = clamp01((centroidHz - 180) / 2100);
+    }
+  }
+
+  const soundDetected = !calibrating && (
+    S.audioLevel > SOUND_PRESENT_TRIGGER ||
+    S.beatLevel > BASS_PRESENT_TRIGGER
+  );
+
+  if (soundDetected) {
+    S.afterglow = 1.0;
+    S.timeSinceSound = 0;
+  } else {
+    S.afterglow = Math.max(0, S.afterglow - dt * 2.6);
+    S.timeSinceSound += dt;
+  }
+
+  updateVoiceBodyMotion(dt, isMic, calibrating, boosted, bassBoost, brightness);
+
+  // 5秒地点で切り替えるのでなく、最後の1秒を使ってダンスから待機へ渡す。
+  const listeningTarget = smooth01(
+    (S.timeSinceSound - LISTENING_FADE_START_SEC) /
+    Math.max(0.001, LISTENING_HOLD_SEC - LISTENING_FADE_START_SEC)
+  );
+  const blendSpeed = listeningTarget > S.listeningBlend ? 8.0 : LISTENING_EXIT_SPEED;
+  S.listeningBlend += (listeningTarget - S.listeningBlend) * Math.min(1, dt * blendSpeed);
+
+  if (S.listeningBlend > 0.995) S.listeningMode += dt;
+  else if (S.listeningBlend < 0.01) S.listeningMode = 0;
 }
 
 
@@ -277,14 +682,12 @@ const EXPR_INTERVAL = 4;
 
 let smoothBPM = 120;
 
-// ── Click reaction constants ──
 const CR_TAME = 0.10;
 const CR_FLY = 0.45;
 const CR_LAND = 0.15;
 const CR_TOTAL = CR_TAME + CR_FLY + CR_LAND;
 const CR_RECOVERY = 0.30;
 
-// ── Per-pudding state ──
 let puddingStates = [];
 
 function ensurePuddingStates(n) {
@@ -305,13 +708,13 @@ function ensurePuddingStates(n) {
       recoveryTimer: 0,
       cheekBoost: 0,
       jiggleBoost: 0,
-      caramelDelayY: 0
+      caramelDelayY: 0,
+      listeningPhaseOffset: Math.random() * Math.PI * 2
     });
   }
   if (puddingStates.length > n) puddingStates.length = n;
 }
 
-// ── Blink ──
 const blinkStates = [];
 for (let i = 0; i < 10; i++) {
   blinkStates.push({
@@ -324,20 +727,17 @@ for (let i = 0; i < 10; i++) {
 }
 const blinkStyles = ['shut','shut','shut','squint','happy'];
 
-// ── DRAG / CLICK ──
 let selectedIndex = -1;
 let dragOffsetX = 0, dragOffsetY = 0;
 let dragStartX = 0, dragStartY = 0;
 let hasDragged = false;
 
-// ── GAZE ──
 let gazeTarget = -1;
 let gazeHoldTimer = 0;
 const GAZE_HOLD_SEC = 1.5;
 const gazeSmooth = [];
 for (let i = 0; i < 10; i++) gazeSmooth.push({ x: 0, y: 0 });
 
-// ── Formation base position ──
 function getFormationBase(i, count, cx, cy, baseSize) {
   if (count <= 1) return { x: cx, y: cy };
   const spacing = S.spacing * baseSize;
@@ -397,7 +797,6 @@ function getFormationBase(i, count, cx, cy, baseSize) {
   return { x: cx, y: cy };
 }
 
-// ── Motion offset ──
 function getMotionOffset(i, count, baseSize, beat, basePos, cx, cy) {
   if (S.motion === 'none' || count <= 1) {
     return { dx: 0, dy: 0, sizeScale: 1, colorFactor: 1 };
@@ -532,7 +931,6 @@ function updateSmoothPosition(ps, target, dt) {
   return { x: ps.fx, y: ps.fy };
 }
 
-// ── GUI ──
 const $=id=>document.getElementById(id);
 
 function updateVisibleControls() {
@@ -607,16 +1005,21 @@ $('autoInt').oninput=e=>{S.autoInterval=+e.target.value;$('intVal').textContent=
 $('btnManual').onclick=()=>{S.auto=false;$('btnManual').classList.add('on');$('btnAuto').classList.remove('on')};
 $('btnAuto').onclick=()=>{S.auto=true;$('btnAuto').classList.add('on');$('btnManual').classList.remove('on')};
 $('btnReset').onclick=()=>{ resetAllPositions(); };
-$('btnAudio').onclick=()=>{ enableAudio(); };
+$('btnAudio').onclick=()=>{ toggleMic(); };
+$('btnFile').onclick=()=>{ toggleFile(); };
+$('fileInput').onchange=(e)=>{
+  const file = e.target.files && e.target.files[0];
+  if (file) loadMediaFile(file);
+  e.target.value = '';
+};
 
 updateVisibleControls();
 
 window.addEventListener('wheel', e => {
-  if (e.target.closest('#gui')) return;
+  if (e.target.closest('#gui') || e.target.closest('#mediaPreview')) return;
   S.zoom = Math.max(0.4, Math.min(3.0, S.zoom - e.deltaY * 0.001));
 }, {passive:true});
 
-// ── Catmull-Rom ──
 function catmullRomPoints(controlPts, segments) {
   const out = [];
   const n = controlPts.length;
@@ -636,7 +1039,26 @@ function catmullRomPoints(controlPts, segments) {
   return out;
 }
 
-function makePuddingOutline(w, h, bodyTop, bodyBot, jig) {
+function makeBodyDeformer(w, h, bodyTop, bodyBot, deform = {}) {
+  const lean = deform.lean || 0;
+  const stretch = deform.stretch || 0;
+  const width = deform.width || 0;
+
+  return (x, y) => {
+    // bodyBot以下は影響ゼロ。上へ行くほど変形量を増やし、底辺を水平固定する。
+    const uRaw = (bodyBot - y) / Math.max(1, bodyBot - bodyTop);
+    const u = clamp01(uRaw);
+    const anchor = smooth01(u);
+    const upper = anchor * (0.38 + 0.62 * u);
+
+    return {
+      x: x * (1 + width * upper) + lean * w * upper,
+      y: y - stretch * h * upper
+    };
+  };
+}
+
+function makePuddingOutline(w, h, bodyTop, bodyBot, jig, deform = {}) {
   const topW = w*0.58 + jig(7,w*0.04);
   const botW = w*1.05 + jig(5,w*0.03);
   const cp = [];
@@ -656,10 +1078,12 @@ function makePuddingOutline(w, h, bodyTop, bodyBot, jig) {
     const t=i/4;
     cp.push({x:-topW/2+(-botW/2+topW/2)*t-Math.sin(t*Math.PI)*w*0.03+jig(8+t,1.5), y:bodyTop+(bodyBot-bodyTop)*t});
   }
-  return {pts:catmullRomPoints(cp,4), bodyTop};
+
+  const deformPoint = makeBodyDeformer(w, h, bodyTop, bodyBot, deform);
+  const pts = catmullRomPoints(cp,4).map(p => deformPoint(p.x, p.y));
+  return {pts, bodyTop, deformPoint};
 }
 
-// ── Click reaction transform ──
 function getClickReactionTransform(cr, t, size) {
   const elapsed = t - cr.startTime;
   let dy = 0, scX = 1, scY = 1;
@@ -698,7 +1122,6 @@ function adjustColor(sk, colorStr, factor) {
   );
 }
 
-// ── p5 sketch ──
 new p5(sk => {
   let t = 0;
   let beatAccum = 0;
@@ -716,7 +1139,7 @@ new p5(sk => {
   };
 
   sk.mousePressed = () => {
-    if (document.elementFromPoint(sk.mouseX, sk.mouseY)?.closest('#gui, #guiToggle')) return;
+    if (document.elementFromPoint(sk.mouseX, sk.mouseY)?.closest('#gui, #guiToggle, #mediaPreview')) return;
     const baseSize = Math.min(sk.width, sk.height) * 0.16 * S.zoom;
     const hitRadius = baseSize * 0.7;
     let closestDist = Infinity;
@@ -783,8 +1206,7 @@ new p5(sk => {
     smoothBPM += (S.bpm-smoothBPM)*Math.min(1,dt*3);
     sk.background(S.colBg);
 
-    // Audio level update
-    updateAudioLevel();
+    updateAudioLevel(dt);
 
     ensurePuddingStates(S.count);
 
@@ -914,50 +1336,81 @@ new p5(sk => {
 
     const recoveryRatio = ps && ps.recoveryTimer > 0 ? ps.recoveryTimer / CR_RECOVERY : 0;
     const danceInfluence = 1 - recoveryRatio;
-
     const expr = facePool[currentExprIdx];
 
-    let dy=0, rot=0, scX=1, scY=1;
+    let dx=0, dy=0, rot=0, scX=1, scY=1;
+    let bodyLean=0, bodyStretch=0, bodyWidth=0;
     const phase = beat*Math.PI*2;
 
-    // ── Audio push (NEW): 全ダンスの跳ね幅に音量を加算 ──
-        const shaped = Math.pow(S.audioLevel, 0.6);
-        const audioPush = shaped * size * 1.5;
+    const audioInputActive = isAudioAnalysisActive();
+    const isMicActive = audioInputActive && audioSourceType === 'mic';
+    const isFileActive = audioInputActive && audioSourceType === 'file';
+    const audioActive = audioInputActive && (
+      S.audioLevel > LISTENING_TRIGGER ||
+      S.beatLevel > 0.22 ||
+      S.afterglow > 0.16
+    );
+    const listeningBlend = audioInputActive ? smooth01(S.listeningBlend) : 0;
 
-
+    let danceDx=0, danceDy=0, danceScX=1, danceScY=1, danceRot=0;
+    switch(S.dance){
+      case 'bounce':
+        danceDy=-Math.abs(Math.sin(phase))*size*0.35;
+        danceScY=1+Math.abs(Math.sin(phase))*0.1;
+        danceScX=1-Math.abs(Math.sin(phase))*0.06;
+        danceRot=Math.sin(phase*0.5)*0.12; break;
+      case 'twist':
+        danceDy=-Math.abs(Math.sin(phase))*size*0.15;
+        danceScX=1+Math.sin(phase)*0.15;
+        danceScY=1-Math.sin(phase)*0.08;
+        danceRot=Math.sin(phase*0.5)*0.08; break;
+      case 'sway':
+        danceDx=Math.sin(phase*0.5)*size*0.3;
+        danceDy=-Math.abs(Math.sin(phase))*size*0.1;
+        danceRot=Math.sin(phase*0.5)*0.22; break;
+      case 'hop':
+        danceDy=-Math.max(0,Math.sin(phase))*size*0.55;
+        danceRot=Math.sin(phase*0.5)*0.15;
+        danceScY=danceDy<-size*0.05?1.08:0.9;
+        danceScX=danceDy<-size*0.05?0.93:1.08; break;
+    }
 
     if (inReaction) {
       dy = crTf.dy;
       scX = crTf.scX;
       scY = crTf.scY;
+    } else if (isFileActive && audioActive) {
+      // 基準版のファイル・ビート反応を維持。
+      const beatShaped = Math.pow(S.beatLevel, 0.55);
+      const voiceShaped = Math.pow(S.audioLevel, 0.6);
+      const audioPush = (beatShaped * 1.2 + voiceShaped * 0.6) * size * 0.9;
+      dy = -audioPush;
+      scY = 1 + Math.min(0.15, audioPush / size * 0.3);
+      scX = 1 - Math.min(0.10, audioPush / size * 0.2);
+    } else if (isMicActive && (audioActive || S.voicePresence > 0.015)) {
+      // 発話中は跳ばない。底を接地させ、声の抑揚を上体のたわみと伸縮へ変換。
+      bodyLean = S.voiceLean;
+      bodyStretch = S.voiceShape;
+      bodyWidth = -S.voiceShape * 0.50;
+    } else if (audioInputActive && listeningBlend > 0.001) {
+      // 通常ダンスを弱めながら、底を固定した「伺い」変形へ滑らかに渡す。
+      const danceMix = 1 - listeningBlend;
+      dx = danceDx * danceInfluence * danceMix;
+      dy = danceDy * danceInfluence * danceMix;
+      rot = danceRot * danceInfluence * danceMix;
+      scX = 1 + (danceScX - 1) * danceInfluence * danceMix;
+      scY = 1 + (danceScY - 1) * danceInfluence * danceMix;
+
+      const off = ps ? ps.listeningPhaseOffset : 0;
+      const slowSway =
+        Math.sin(time * 1.14 + off) * 0.064 +
+        Math.sin(time * 0.47 + off * 1.63) * 0.016;
+      bodyLean = slowSway * listeningBlend;
+      bodyStretch = Math.sin(time * 0.61 + off) * 0.006 * listeningBlend;
+      bodyWidth = -bodyStretch * 0.35;
     } else {
-      let danceDy=0, danceScX=1, danceScY=1, danceRot=0;
-      switch(S.dance){
-        case 'bounce':
-          danceDy=-Math.abs(Math.sin(phase))*size*0.35;
-          danceScY=1+Math.abs(Math.sin(phase))*0.1;
-          danceScX=1-Math.abs(Math.sin(phase))*0.06;
-          danceRot=Math.sin(phase*0.5)*0.12; break;
-        case 'twist':
-          danceDy=-Math.abs(Math.sin(phase))*size*0.15;
-          danceScX=1+Math.sin(phase)*0.15;
-          danceScY=1-Math.sin(phase)*0.08;
-          danceRot=Math.sin(phase*0.5)*0.08; break;
-        case 'sway':
-          sk.translate(Math.sin(phase*0.5)*size*0.3*danceInfluence,0);
-          danceDy=-Math.abs(Math.sin(phase))*size*0.1;
-          danceRot=Math.sin(phase*0.5)*0.22; break;
-        case 'hop':
-          danceDy=-Math.max(0,Math.sin(phase))*size*0.55;
-          danceRot=Math.sin(phase*0.5)*0.15;
-          danceScY=danceDy<-size*0.05?1.08:0.9;
-          danceScX=danceDy<-size*0.05?0.93:1.08; break;
-      }
-      const totalSuppress = Math.max(shaped, S.afterglow * 0.6);
-      const danceSuppress = 1 - totalSuppress;
-
-      dy = danceDy * danceInfluence * danceSuppress - audioPush;
-
+      dx = danceDx * danceInfluence;
+      dy = danceDy * danceInfluence;
       rot = danceRot * danceInfluence;
       scX = 1 + (danceScX - 1) * danceInfluence;
       scY = 1 + (danceScY - 1) * danceInfluence;
@@ -971,26 +1424,33 @@ new p5(sk => {
       ps.caramelDelayY += (caramelTargetY - ps.caramelDelayY) * Math.min(1, dt * 15);
     }
 
-    sk.translate(0,dy);
+    sk.translate(dx,dy);
     sk.rotate(rot);
     sk.scale(scX,scY);
 
     const isFront = scX >= 0;
-
     const w=size, h=size*0.85;
     const jiggleBoost = ps ? ps.jiggleBoost : 0;
     let jiggleMul = 1;
     if (inReaction) {
       jiggleMul = 0;
+    } else if (audioInputActive && listeningBlend > 0.001 && !audioActive) {
+      jiggleMul = 0.16 + (1 - listeningBlend) * 0.28;
+    } else if (isMicActive && (audioActive || S.voicePresence > 0.015)) {
+      jiggleMul = 0.34 + S.voicePresence * 0.18;
+    } else if (isFileActive && audioActive) {
+      jiggleMul = 0.6;
     } else {
       jiggleMul = danceInfluence * (1 + jiggleBoost);
     }
+
     const j = S.jiggle * jiggleMul;
     const jig=(freq,amp)=>Math.sin(time*freq+idx*2)*amp*j;
     const bodyTop=-h*0.45, bodyBot=h*0.4;
-
-    const outline = makePuddingOutline(w,h,bodyTop,bodyBot,jig);
+    const deform = { lean: bodyLean, stretch: bodyStretch, width: bodyWidth };
+    const outline = makePuddingOutline(w,h,bodyTop,bodyBot,jig,deform);
     const pts = outline.pts;
+    const deformPoint = outline.deformPoint;
 
     const bodyColor = adjustColor(sk, S.colBody, colorFactor);
     sk.noStroke(); sk.fill(bodyColor);
@@ -1008,8 +1468,17 @@ new p5(sk => {
     }
     sk.drawingContext.closePath();
     sk.drawingContext.clip();
+    const caraY1 = bodyTop-h*0.2+caramelOffsetY;
+    const caraY2 = bodyTop+h*0.06+caramelOffsetY;
+    const c1 = deformPoint(-w, caraY1);
+    const c2 = deformPoint(w, caraY1);
+    const c3 = deformPoint(w, caraY2);
+    const c4 = deformPoint(-w, caraY2);
     sk.fill(caraColor);
-    sk.rect(-w, bodyTop-h*0.2+caramelOffsetY, w*2, (bodyTop+h*0.06)-(bodyTop-h*0.2));
+    sk.beginShape();
+    sk.vertex(c1.x,c1.y); sk.vertex(c2.x,c2.y);
+    sk.vertex(c3.x,c3.y); sk.vertex(c4.x,c4.y);
+    sk.endShape(sk.CLOSE);
     sk.drawingContext.restore();
 
     if (isFront) {
@@ -1018,11 +1487,13 @@ new p5(sk => {
       const eyeBase=size*0.06;
       const es=expr.eyeScale;
       const maxLook = eyeBase * 0.9;
-
       const isGazing = (gazeTarget === idx);
 
       let targetLookX, targetLookY;
-      if (isGazing) {
+      if (audioInputActive && listeningBlend > 0.6 && !audioActive) {
+        targetLookX = bodyLean * size * 0.24;
+        targetLookY = 0;
+      } else if (isGazing) {
         const localMX = (sk.mouseX - px) / (scX || 0.001);
         const localMY = (sk.mouseY - py - dy) / (scY || 0.001);
         const dxL = localMX;
@@ -1043,40 +1514,40 @@ new p5(sk => {
       const lookX = gs.x;
       const lookY = gs.y;
 
+      const leftEye = deformPoint(-eyeSpacing, eyeY);
+      const rightEye = deformPoint(eyeSpacing, eyeY);
+      const leftPupil = deformPoint(-eyeSpacing + lookX, eyeY + lookY);
+      const rightPupil = deformPoint(eyeSpacing + lookX, eyeY + lookY);
       const isBlinking = bs.blinking;
       const bStyle = bs.blinkStyle;
 
       sk.noStroke();
-
       if(isBlinking){
         sk.stroke(40,30,20,180);
         sk.strokeWeight(1.8);
         sk.noFill();
         const ew = eyeBase*2.5*es;
         if(bStyle === 'shut'){
-          sk.line(-eyeSpacing-ew/2, eyeY, -eyeSpacing+ew/2, eyeY);
-          sk.line(eyeSpacing-ew/2, eyeY, eyeSpacing+ew/2, eyeY);
+          sk.line(leftEye.x-ew/2, leftEye.y, leftEye.x+ew/2, leftEye.y);
+          sk.line(rightEye.x-ew/2, rightEye.y, rightEye.x+ew/2, rightEye.y);
         } else if(bStyle === 'squint'){
-          sk.arc(-eyeSpacing, eyeY-2, ew, eyeBase*1.2, 0.2, Math.PI-0.2);
-          sk.arc(eyeSpacing, eyeY-2, ew, eyeBase*1.2, 0.2, Math.PI-0.2);
+          sk.arc(leftEye.x, leftEye.y-2, ew, eyeBase*1.2, 0.2, Math.PI-0.2);
+          sk.arc(rightEye.x, rightEye.y-2, ew, eyeBase*1.2, 0.2, Math.PI-0.2);
         } else if(bStyle === 'happy'){
-          sk.arc(-eyeSpacing, eyeY+2, ew, eyeBase*1.5, Math.PI+0.3, -0.3);
-          sk.arc(eyeSpacing, eyeY+2, ew, eyeBase*1.5, Math.PI+0.3, -0.3);
+          sk.arc(leftEye.x, leftEye.y+2, ew, eyeBase*1.5, Math.PI+0.3, -0.3);
+          sk.arc(rightEye.x, rightEye.y+2, ew, eyeBase*1.5, Math.PI+0.3, -0.3);
         }
         sk.noStroke();
       } else {
         sk.fill(255);
-        sk.push(); sk.translate(-eyeSpacing,eyeY);
-        sk.ellipse(0,0,eyeBase*2.5*es,eyeBase*2.8*es); sk.pop();
-        sk.push(); sk.translate(eyeSpacing,eyeY);
-        sk.ellipse(0,0,eyeBase*2.5*es,eyeBase*2.8*es); sk.pop();
-
+        sk.ellipse(leftEye.x,leftEye.y,eyeBase*2.5*es,eyeBase*2.8*es);
+        sk.ellipse(rightEye.x,rightEye.y,eyeBase*2.5*es,eyeBase*2.8*es);
         sk.fill(25);
-        sk.ellipse(-eyeSpacing+lookX,eyeY+lookY,eyeBase*1.5*es,eyeBase*1.7*es);
-        sk.ellipse(eyeSpacing+lookX,eyeY+lookY,eyeBase*1.5*es,eyeBase*1.7*es);
+        sk.ellipse(leftPupil.x,leftPupil.y,eyeBase*1.5*es,eyeBase*1.7*es);
+        sk.ellipse(rightPupil.x,rightPupil.y,eyeBase*1.5*es,eyeBase*1.7*es);
         sk.fill(255);
-        sk.ellipse(-eyeSpacing+lookX-1.5,eyeY+lookY-1.5,eyeBase*0.55,eyeBase*0.55);
-        sk.ellipse(eyeSpacing+lookX-1.5,eyeY+lookY-1.5,eyeBase*0.55,eyeBase*0.55);
+        sk.ellipse(leftPupil.x-1.5,leftPupil.y-1.5,eyeBase*0.55,eyeBase*0.55);
+        sk.ellipse(rightPupil.x-1.5,rightPupil.y-1.5,eyeBase*0.55,eyeBase*0.55);
       }
 
       const cheekBoost = ps ? ps.cheekBoost : 0;
@@ -1084,38 +1555,41 @@ new p5(sk => {
       const cheekCol = sk.color(S.colCheek);
       cheekCol.setAlpha(cheekAlphaEff * 255);
       sk.fill(cheekCol);
-      sk.ellipse(-eyeSpacing-w*0.13, eyeY+size*0.08, size*0.15, size*0.09);
-      sk.ellipse(eyeSpacing+w*0.13, eyeY+size*0.08, size*0.15, size*0.09);
+      const leftCheek = deformPoint(-eyeSpacing-w*0.13, eyeY+size*0.08);
+      const rightCheek = deformPoint(eyeSpacing+w*0.13, eyeY+size*0.08);
+      sk.ellipse(leftCheek.x,leftCheek.y,size*0.15,size*0.09);
+      sk.ellipse(rightCheek.x,rightCheek.y,size*0.15,size*0.09);
 
       const mouthY=eyeY+size*0.12;
+      const mouth = deformPoint(0,mouthY);
       const mSize=size*0.05;
       switch(expr.mouthType){
         case 'smile':
           sk.noFill();sk.stroke(80,50,30,130);sk.strokeWeight(1.5);
-          sk.arc(0,mouthY,mSize*2,mSize*1.2,0.1,Math.PI-0.1);break;
+          sk.arc(mouth.x,mouth.y,mSize*2,mSize*1.2,0.1,Math.PI-0.1);break;
         case 'grin':
           sk.noFill();sk.stroke(80,50,30,130);sk.strokeWeight(1.5);
-          sk.arc(0,mouthY,mSize*2.8,mSize*1.8,0.05,Math.PI-0.05);break;
+          sk.arc(mouth.x,mouth.y,mSize*2.8,mSize*1.8,0.05,Math.PI-0.05);break;
         case 'oh':
           sk.noStroke();sk.fill(80,50,30,100);
-          sk.ellipse(0,mouthY,mSize*1.2,mSize*1.6);break;
+          sk.ellipse(mouth.x,mouth.y,mSize*1.2,mSize*1.6);break;
         case 'open':
           sk.noStroke();sk.fill(80,50,30,120);
-          sk.ellipse(0,mouthY,mSize*2,mSize*2.4);
+          sk.ellipse(mouth.x,mouth.y,mSize*2,mSize*2.4);
           sk.fill(255,100,120,70);
-          sk.ellipse(0,mouthY+mSize*0.4,mSize*0.8,mSize*0.5);break;
+          sk.ellipse(mouth.x,mouth.y+mSize*0.4,mSize*0.8,mSize*0.5);break;
         case 'smirk':
           sk.noFill();sk.stroke(80,50,30,130);sk.strokeWeight(1.5);
-          sk.arc(mSize*0.3,mouthY,mSize*1.8,mSize*1.0,0.2,Math.PI*0.7);break;
+          sk.arc(mouth.x+mSize*0.3,mouth.y,mSize*1.8,mSize*1.0,0.2,Math.PI*0.7);break;
         case 'hehe':
           sk.noStroke();sk.fill(80,50,30,110);
-          sk.arc(0,mouthY,mSize*2.2,mSize*1.6,0,Math.PI,sk.CHORD);break;
+          sk.arc(mouth.x,mouth.y,mSize*2.2,mSize*1.6,0,Math.PI,sk.CHORD);break;
         case 'pout':
           sk.noFill();sk.stroke(80,50,30,130);sk.strokeWeight(1.5);
-          sk.arc(0,mouthY+mSize*0.3,mSize*1.4,mSize*0.8,Math.PI+0.2,-0.2);break;
+          sk.arc(mouth.x,mouth.y+mSize*0.3,mSize*1.4,mSize*0.8,Math.PI+0.2,-0.2);break;
         case 'laugh':
           sk.noStroke();sk.fill(80,50,30,130);
-          sk.arc(0,mouthY,mSize*2.8,mSize*2.2,0,Math.PI,sk.CHORD);break;
+          sk.arc(mouth.x,mouth.y,mSize*2.8,mSize*2.2,0,Math.PI,sk.CHORD);break;
       }
       sk.noStroke();
     }
